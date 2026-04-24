@@ -1,0 +1,35 @@
+'use client';
+
+type AppHeaderProps = {
+  apiBase: string;
+  busy: boolean;
+  onApiBaseChange: (value: string) => void;
+  onHealth: () => void;
+  onLogout: () => void;
+};
+
+export default function AppHeader({
+  apiBase,
+  busy,
+  onApiBaseChange,
+  onHealth,
+  onLogout,
+}: AppHeaderProps) {
+  return (
+    <header className="navbar">
+      <div className="navbar-left">
+        <strong>WMS Platform</strong>
+        <span className="badge">Web Application</span>
+      </div>
+      <div className="navbar-right">
+        {/* <input value={apiBase} onChange={(e) => onApiBaseChange(e.target.value)} /> */}
+        {/* <button onClick={onHealth} disabled={busy}>
+          Health
+        </button> */}
+        <button className="btn-secondary" onClick={onLogout}>
+          Logout
+        </button>
+      </div>
+    </header>
+  );
+}
