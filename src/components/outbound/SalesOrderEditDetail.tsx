@@ -46,7 +46,7 @@ export default function SalesOrderEditDetail({
   });
   const [localError, setLocalError] = useState<string | null>(null);
   const customerId = salesOrder?.customerId != null ? String(salesOrder.customerId) : '';
-  const editableItems = !readOnly && (status === 'DRAFT' || status === 'RELEASED');
+  const editableItems = !readOnly && (status === 'DRAFT' || status === 'RELEASED' || status === 'ALLOCATED');
   const productsForCustomer = useMemo(
     () => products.filter((p) => !customerId || p.customerId === customerId),
     [products, customerId],
@@ -94,8 +94,10 @@ export default function SalesOrderEditDetail({
           >
             <option value="DRAFT">DRAFT</option>
             <option value="RELEASED">RELEASED</option>
+            <option value="ALLOCATED">ALLOCATED</option>
             <option value="PICKING">PICKING</option>
             <option value="PACKING">PACKING</option>
+            <option value="LOADING">LOADING</option>
             <option value="SHIPPED">SHIPPED</option>
             <option value="CANCELLED">CANCELLED</option>
           </select>
@@ -135,7 +137,7 @@ export default function SalesOrderEditDetail({
         <label className="asn-items-section-title">Items</label>
         {!editableItems ? (
           <p className="muted" style={{ marginTop: 6 }}>
-            Item hanya bisa diubah saat status DRAFT atau RELEASED.
+            Item hanya bisa diubah saat status DRAFT, RELEASED, atau ALLOCATED.
           </p>
         ) : null}
         {items.map((item, idx) => (

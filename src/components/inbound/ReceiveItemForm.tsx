@@ -25,8 +25,10 @@ export default function ReceiveItemForm({ busy, asns, products, bins, onSubmit }
   const [productId, setProductId] = useState('');
   const [supplierId, setSupplierId] = useState('');
   const [binId, setBinId] = useState('');
-  const [qtyReceived, setQtyReceived] = useState('40');
+  const [qtyReceived, setQtyReceived] = useState('');
   const [note, setNote] = useState('');
+  const [asnModalOpen, setAsnModalOpen] = useState(false);
+  const [asnQuery, setAsnQuery] = useState('');
 
   const selectedAsn = useMemo(
     () => asns.find((a) => a.id === inboundAsnId) as (OptionItem & { status?: string; items?: unknown[] }) | undefined,
@@ -60,9 +62,23 @@ export default function ReceiveItemForm({ busy, asns, products, bins, onSubmit }
           itemSupplier?.code != null ? String(itemSupplier.code) : sid;
         const supplierName =
           itemSupplier?.name != null ? String(itemSupplier.name) : '-';
-        return { id, supplierId: sid, code, name, supplierCode, supplierName };
+        const qtyExpectedRaw = item.qtyExpected;
+        const qtyExpected = typeof qtyExpectedRaw === 'number' ? qtyExpectedRaw : Number(qtyExpectedRaw ?? 0);
+        return { id, supplierId: sid, code, name, supplierCode, supplierName, qtyExpected };
       })
-      .filter((v): v is { id: string; supplierId: string; code: string; name: string; supplierCode: string; supplierName: string } => Boolean(v));
+      .filter(
+        (
+          v,
+        ): v is {
+          id: string;
+          supplierId: string;
+          code: string;
+          name: string;
+          supplierCode: string;
+          supplierName: string;
+          qtyExpected: number;
+        } => Boolean(v),
+      );
     return mapped;
   }, [selectedAsn, products]);
 
@@ -86,26 +102,80 @@ export default function ReceiveItemForm({ busy, asns, products, bins, onSubmit }
   }, [productId, itemsForSelectedAsn]);
 
   useEffect(() => {
-    if (!productId) return;
-    if (!itemsForSelectedAsn.some((p) => p.id === productId && p.supplierId === supplierId)) {
+    if (!productId) {
       setSupplierId('');
+      return;
+    }
+    const match = itemsForSelectedAsn.find((p) => p.id === productId);
+    if (!match) {
+      setSupplierId('');
+      return;
+    }
+    if (supplierId !== match.supplierId) {
+      setSupplierId(match.supplierId);
     }
   }, [supplierId, productId, itemsForSelectedAsn]);
+
+  const selectedAsnItem = useMemo(
+    () => itemsForSelectedAsn.find((p) => p.id === productId && p.supplierId === supplierId),
+    [itemsForSelectedAsn, productId, supplierId],
+  );
+  const selectedSupplierLabel = selectedAsnItem
+    ? `${selectedAsnItem.supplierCode} - ${selectedAsnItem.supplierName}`
+    : inboundAsnId
+      ? productId
+        ? 'Supplier tidak ditemukan di ASN'
+        : 'Pilih product ASN'
+      : 'Pilih ASN dulu';
+  const selectedQtyExpectedLabel =
+    selectedAsnItem != null && Number.isFinite(selectedAsnItem.qtyExpected)
+      ? String(selectedAsnItem.qtyExpected)
+      : '-';
+  const selectedAsnLabel = selectedAsn
+    ? `${selectedAsn.asnNo ?? selectedAsn.id}${selectedAsn.status ? ` (${selectedAsn.status})` : ''}`
+    : 'Pilih ASN...';
+  const browsedAsns = useMemo(() => {
+    const needle = asnQuery.trim().toLowerCase();
+    if (!needle) return asns;
+    return asns.filter((a) =>
+      `${a.asnNo ?? ''} ${(a as Record<string, unknown>).referenceNo ?? ''} ${(a as Record<string, unknown>).status ?? ''}`
+        .toLowerCase()
+        .includes(needle),
+    );
+  }, [asnQuery, asns]);
+
+  useEffect(() => {
+    if (selectedAsnItem == null || !Number.isFinite(selectedAsnItem.qtyExpected)) {
+      setQtyReceived('');
+      return;
+    }
+    setQtyReceived(String(selectedAsnItem.qtyExpected));
+  }, [selectedAsnItem]);
 
   return (
     <>
       <h3 className="form-section-title">Receive item</h3>
       <div className="form-grid">
         <div>
-          <label htmlFor="in-rcv-asn">ASN</label>
-          <select id="in-rcv-asn" value={inboundAsnId} onChange={(e) => setInboundAsnId(e.target.value)}>
-            <option value="">Pilih ASN</option>
-            {asns.map((a) => (
-              <option key={a.id} value={a.id}>
-                {a.asnNo ?? a.id}
-              </option>
-            ))}
-          </select>
+          <label htmlFor="in-rcv-asn-browse">ASN</label>
+          <div className="browse-field">
+            <input
+              id="in-rcv-asn-browse"
+              readOnly
+              value={selectedAsnLabel}
+              placeholder="Browse ASN"
+              onClick={() => setAsnModalOpen(true)}
+            />
+            <button
+              type="button"
+              className="browse-trigger"
+              disabled={busy}
+              aria-label="Browse ASN"
+              onClick={() => setAsnModalOpen(true)}
+            >
+              Browse
+            </button>
+          </div>
         </div>
         <div>
           <label htmlFor="in-rcv-product">Product</label>
@@ -127,22 +197,11 @@ export default function ReceiveItemForm({ busy, asns, products, bins, onSubmit }
         </div>
         <div>
           <label htmlFor="in-rcv-supplier">Supplier</label>
-          <select
-            id="in-rcv-supplier"
-            value={supplierId}
-            onChange={(e) => setSupplierId(e.target.value)}
-            disabled={!inboundAsnId}
-          >
-            <option value="">{inboundAsnId ? 'Pilih supplier ASN' : 'Pilih ASN dulu'}</option>
-            {itemsForSelectedAsn
-              .filter((p, idx, arr) => arr.findIndex((x) => x.supplierId === p.supplierId) === idx)
-              .filter((p) => !productId || p.id === productId)
-              .map((p) => (
-                <option key={p.supplierId} value={p.supplierId}>
-                  {p.supplierCode} - {p.supplierName}
-                </option>
-              ))}
-          </select>
+          <input id="in-rcv-supplier" readOnly value={selectedSupplierLabel} />
+        </div>
+        <div>
+          <label htmlFor="in-rcv-qty-expected">Qty expected</label>
+          <input id="in-rcv-qty-expected" value={selectedQtyExpectedLabel} readOnly />
         </div>
         <div>
           <label htmlFor="in-rcv-bin">Bin</label>
@@ -164,6 +223,54 @@ export default function ReceiveItemForm({ busy, asns, products, bins, onSubmit }
           <input id="in-rcv-note" value={note} onChange={(e) => setNote(e.target.value)} placeholder="Opsional" />
         </div>
       </div>
+      {asnModalOpen ? (
+        <div className="modal-backdrop" onClick={() => setAsnModalOpen(false)}>
+          <div className="modal-card" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <strong>Pilih ASN</strong>
+              <button type="button" className="btn-secondary" onClick={() => setAsnModalOpen(false)}>
+                Tutup
+              </button>
+            </div>
+            <label htmlFor="in-rcv-modal-asn-search" className="modal-search-label">
+              Cari ASN
+            </label>
+            <input
+              id="in-rcv-modal-asn-search"
+              className="modal-search"
+              placeholder="No ASN / reference / status"
+              value={asnQuery}
+              onChange={(e) => setAsnQuery(e.target.value)}
+            />
+            <div className="modal-list">
+              {browsedAsns.length === 0 ? (
+                <div className="modal-item" style={{ cursor: 'default' }}>
+                  ASN tidak ditemukan.
+                </div>
+              ) : (
+                browsedAsns.map((a) => (
+                  <button
+                    key={a.id}
+                    type="button"
+                    className={inboundAsnId === a.id ? 'modal-item active' : 'modal-item'}
+                    onClick={() => {
+                      setInboundAsnId(a.id);
+                      setProductId('');
+                      setSupplierId('');
+                      setAsnModalOpen(false);
+                    }}
+                  >
+                    {a.asnNo ?? a.id}
+                    {(a as Record<string, unknown>).status != null
+                      ? ` (${String((a as Record<string, unknown>).status)})`
+                      : ''}
+                  </button>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      ) : null}
       <button
         type="button"
         onClick={() =>
