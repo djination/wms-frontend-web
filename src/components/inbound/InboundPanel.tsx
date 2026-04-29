@@ -99,6 +99,8 @@ export default function InboundPanel({ section }: InboundPanelProps) {
 
       <SimpleTable
         title={section === 'history' ? 'Receiving/ASN History' : 'Latest ASN'}
+        hideViewAction={section !== 'history'}
+        hideEditAction={section === 'history'}
         columns={[
           { key: 'asnNo', label: 'ASN No', sortType: 'text' },
           { key: 'status', label: 'Status', sortType: 'text' },

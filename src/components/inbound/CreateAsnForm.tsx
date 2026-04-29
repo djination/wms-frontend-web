@@ -1,6 +1,8 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import CustomerBrowseField from '@/src/components/ui/CustomerBrowseField';
+import ProductBrowseField from '@/src/components/ui/ProductBrowseField';
 import { computeNextAsnNo, dateInputToYyyymmdd, getAsnNoPrefix } from '@/src/lib/asn-no';
 import { OptionItem } from '@/src/lib/useWmsData';
 
@@ -36,11 +38,6 @@ export default function CreateAsnForm({ busy, customers, suppliers, uoms, wareho
   const [items, setItems] = useState<Array<{ productId: string; supplierId: string; uomId: string; qtyExpected: string }>>([
     { productId: '', supplierId: '', uomId: '', qtyExpected: '100' },
   ]);
-  const [customerModalOpen, setCustomerModalOpen] = useState(false);
-  const [customerQuery, setCustomerQuery] = useState('');
-  const [productModalOpen, setProductModalOpen] = useState(false);
-  const [productQuery, setProductQuery] = useState('');
-  const [activeProductRowIndex, setActiveProductRowIndex] = useState<number | null>(null);
 
   const existingAsnNos = useMemo(
     () => asns.map((a) => a.asnNo).filter((n): n is string => typeof n === 'string' && n.length > 0),
@@ -65,10 +62,6 @@ export default function CreateAsnForm({ busy, customers, suppliers, uoms, wareho
     [suppliers, customerId],
   );
 
-  const selectedCustomer = useMemo(
-    () => customers.find((c) => c.id === customerId),
-    [customers, customerId],
-  );
 
   const warehousesForSelectedCustomer = useMemo(() => {
     if (!customerId) return warehouses;
@@ -89,28 +82,6 @@ export default function CreateAsnForm({ busy, customers, suppliers, uoms, wareho
       return mappedCustomerIds.includes(customerId);
     });
   }, [warehouses, customerId]);
-
-  const browsedCustomers = useMemo(() => {
-    const needle = customerQuery.trim().toLowerCase();
-    if (!needle) return customers;
-    return customers.filter((c) =>
-      `${c.code ?? ''} ${c.name ?? ''}`.toLowerCase().includes(needle),
-    );
-  }, [customers, customerQuery]);
-
-  const selectedProductsById = useMemo(() => {
-    const map = new Map<string, OptionItem>();
-    for (const p of productsForCustomer) map.set(p.id, p);
-    return map;
-  }, [productsForCustomer]);
-
-  const browsedProducts = useMemo(() => {
-    const needle = productQuery.trim().toLowerCase();
-    if (!needle) return productsForCustomer;
-    return productsForCustomer.filter((p) =>
-      `${p.sku ?? ''} ${p.code ?? ''} ${p.name ?? ''}`.toLowerCase().includes(needle),
-    );
-  }, [productsForCustomer, productQuery]);
 
   useEffect(() => {
     setItems((prev) =>
@@ -177,29 +148,17 @@ export default function CreateAsnForm({ busy, customers, suppliers, uoms, wareho
           <input id="asn-planning" type="date" value={planningDate} onChange={(e) => setPlanningDate(e.target.value)} />
         </div>
         <div>
-          <label htmlFor="asn-customer-browse">Customer</label>
-          <div className="browse-field">
-            <input
-              id="asn-customer-browse"
-              readOnly
-              value={
-                selectedCustomer
-                  ? `${selectedCustomer.code ?? '-'} — ${selectedCustomer.name ?? '-'}`
-                  : 'Pilih customer…'
-              }
-              placeholder="Browse customer"
-              onClick={() => setCustomerModalOpen(true)}
-            />
-            <button
-              type="button"
-              className="browse-trigger"
-              disabled={busy}
-              aria-label="Browse customer"
-              onClick={() => setCustomerModalOpen(true)}
-            >
-              Browse
-            </button>
-          </div>
+          <CustomerBrowseField
+            label="Customer"
+            customers={customers}
+            selectedCustomerId={customerId}
+            onSelectCustomer={(nextCustomerId) => {
+              setCustomerId(nextCustomerId);
+              setWarehouseId('');
+              setItems([{ productId: '', supplierId: '', uomId: '', qtyExpected: '100' }]);
+            }}
+            disabled={busy}
+          />
           <small className="field-hint">
             Pilih customer dulu. Warehouse akan terfilter sesuai mapping customer dan scope user login.
           </small>
@@ -224,42 +183,23 @@ export default function CreateAsnForm({ busy, customers, suppliers, uoms, wareho
           <label className="asn-items-section-title">Items ASN (multi produk)</label>
           <div className="asn-items-list">
             {items.map((item, idx) => {
-              const selected = selectedProductsById.get(item.productId);
               return (
                 <div key={`asn-item-${idx}`} className="asn-item-row">
                   <div className="asn-item-field asn-item-field--product">
-                    <label htmlFor={`asn-product-browse-${idx}`}>Produk #{idx + 1}</label>
-                    <div className="browse-field">
-                      <input
-                        id={`asn-product-browse-${idx}`}
-                        readOnly
-                        value={
-                          selected
-                            ? `${selected.sku ?? selected.code ?? '-'} — ${selected.name ?? '-'}`
-                            : customerId
-                              ? 'Pilih produk…'
-                              : 'Pilih customer terlebih dahulu'
-                        }
-                        placeholder="Browse produk"
-                        onClick={() => {
-                          if (!customerId) return;
-                          setActiveProductRowIndex(idx);
-                          setProductModalOpen(true);
-                        }}
-                      />
-                      <button
-                        type="button"
-                        className="browse-trigger"
-                        disabled={busy || !customerId}
-                        aria-label={`Browse produk baris ${idx + 1}`}
-                        onClick={() => {
-                          setActiveProductRowIndex(idx);
-                          setProductModalOpen(true);
-                        }}
-                      >
-                        Browse
-                      </button>
-                    </div>
+                    <ProductBrowseField
+                      label={`Produk #${idx + 1}`}
+                      products={productsForCustomer}
+                      selectedProductId={item.productId}
+                      onSelectProduct={(nextProductId) =>
+                        setItems((prev) =>
+                          prev.map((it, i) =>
+                            i === idx ? { ...it, productId: nextProductId, supplierId: '' } : it,
+                          ),
+                        )
+                      }
+                      disabled={busy || !customerId}
+                      emptyMessage={customerId ? 'Tidak ada produk untuk customer ini.' : 'Pilih customer di form.'}
+                    />
                   </div>
                   <div className="asn-item-field asn-item-field--supplier">
                     <label htmlFor={`asn-supplier-${idx}`}>Supplier</label>
@@ -351,101 +291,6 @@ export default function CreateAsnForm({ busy, customers, suppliers, uoms, wareho
           </div>
         </div>
       </div>
-
-      {productModalOpen ? (
-        <div className="modal-backdrop" onClick={() => setProductModalOpen(false)}>
-          <div className="modal-card" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <strong>Pilih produk</strong>
-              <button type="button" className="btn-secondary" onClick={() => setProductModalOpen(false)}>
-                Tutup
-              </button>
-            </div>
-            <label htmlFor="asn-modal-product-search" className="modal-search-label">
-              Cari produk
-            </label>
-            <input
-              id="asn-modal-product-search"
-              className="modal-search"
-              placeholder="SKU atau nama…"
-              value={productQuery}
-              onChange={(e) => setProductQuery(e.target.value)}
-            />
-            <div className="modal-list">
-              {browsedProducts.length === 0 ? (
-                <div className="modal-item" style={{ cursor: 'default' }}>
-                  {customerId ? 'Tidak ada produk untuk customer ini.' : 'Pilih customer di form.'}
-                </div>
-              ) : (
-                browsedProducts.map((p) => (
-                  <button
-                    key={p.id}
-                    type="button"
-                    className={
-                      activeProductRowIndex != null && items[activeProductRowIndex]?.productId === p.id
-                        ? 'modal-item active'
-                        : 'modal-item'
-                    }
-                    onClick={() => {
-                      if (activeProductRowIndex == null) return;
-                      setItems((prev) =>
-                        prev.map((it, i) =>
-                          i === activeProductRowIndex ? { ...it, productId: p.id, supplierId: '' } : it,
-                        ),
-                      );
-                      setProductModalOpen(false);
-                      setActiveProductRowIndex(null);
-                    }}
-                  >
-                    {p.sku ?? p.code ?? p.id} — {p.name ?? '-'}
-                  </button>
-                ))
-              )}
-            </div>
-          </div>
-        </div>
-      ) : null}
-
-      {customerModalOpen ? (
-        <div className="modal-backdrop" onClick={() => setCustomerModalOpen(false)}>
-          <div className="modal-card" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <strong>Pilih customer</strong>
-              <button type="button" className="btn-secondary" onClick={() => setCustomerModalOpen(false)}>
-                Tutup
-              </button>
-            </div>
-            <label htmlFor="asn-modal-customer-search" className="modal-search-label">
-              Cari customer
-            </label>
-            <input
-              id="asn-modal-customer-search"
-              className="modal-search"
-              placeholder="Code atau nama…"
-              value={customerQuery}
-              onChange={(e) => setCustomerQuery(e.target.value)}
-            />
-            <div className="modal-list">
-              {browsedCustomers.map((c) => (
-                <button
-                  key={c.id}
-                  type="button"
-                  className={customerId === c.id ? 'modal-item active' : 'modal-item'}
-                  onClick={() => {
-                    setCustomerId(c.id);
-                    setWarehouseId('');
-                    setItems([{ productId: '', supplierId: '', uomId: '', qtyExpected: '100' }]);
-                    setCustomerModalOpen(false);
-                  }}
-                >
-                  {c.code ?? '-'} — {c.name ?? '-'}
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-      ) : null}
-
       <button
         type="button"
         onClick={() =>

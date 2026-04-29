@@ -26,6 +26,8 @@ type SimpleTableProps = {
   hideRowActions?: boolean;
   /** Sembunyikan tombol View, aksi utama jadi Edit */
   hideViewAction?: boolean;
+  /** Sembunyikan tombol Edit */
+  hideEditAction?: boolean;
   /** Konten modal Edit / Lihat (variant `view` = hanya baca, sama layout dengan edit) */
   renderEditModal?: (
     row: SimpleTableRow,
@@ -48,6 +50,7 @@ export default function SimpleTable({
   loading = false,
   hideRowActions = false,
   hideViewAction = true,
+  hideEditAction = false,
   renderEditModal,
   onDeleteRow,
   deleteDialogTitle = 'Hapus baris?',
@@ -245,15 +248,17 @@ export default function SimpleTable({
                             <IconView />
                           </button>
                         ) : null}
-                        <button
-                          type="button"
-                          className="table-icon-btn"
-                          title="Ubah"
-                          aria-label="Ubah"
-                          onClick={() => setDialog({ mode: 'edit', row })}
-                        >
-                          <IconEdit />
-                        </button>
+                        {!hideEditAction ? (
+                          <button
+                            type="button"
+                            className="table-icon-btn"
+                            title="Ubah"
+                            aria-label="Ubah"
+                            onClick={() => setDialog({ mode: 'edit', row })}
+                          >
+                            <IconEdit />
+                          </button>
+                        ) : null}
                         <button
                           type="button"
                           className="table-icon-btn table-icon-btn-danger"
@@ -302,7 +307,7 @@ export default function SimpleTable({
                 <div className="modal-header">
                   <strong>Lihat data</strong>
                   <div className="modal-header-actions">
-                    {renderEditModal ? (
+                    {renderEditModal && !hideEditAction ? (
                       <button
                         type="button"
                         className="btn-modal-action"

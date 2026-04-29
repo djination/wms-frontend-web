@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import CustomerBrowseField from '@/src/components/ui/CustomerBrowseField';
 import { OptionItem } from '@/src/lib/useWmsData';
 
 type Props = {
@@ -30,20 +31,6 @@ export default function CreateProductForm({
   const [sku, setSku] = useState('SKU-001');
   const [name, setName] = useState('Produk A 500ml');
   const [supplierIds, setSupplierIds] = useState<string[]>([]);
-  const [customerModalOpen, setCustomerModalOpen] = useState(false);
-  const [customerQuery, setCustomerQuery] = useState('');
-
-  const selectedCustomer = useMemo(
-    () => customers.find((c) => c.id === customerId),
-    [customers, customerId],
-  );
-  const browsedCustomers = useMemo(() => {
-    const needle = customerQuery.trim().toLowerCase();
-    if (!needle) return customers;
-    return customers.filter((c) =>
-      `${c.code ?? ''} ${c.name ?? ''}`.toLowerCase().includes(needle),
-    );
-  }, [customers, customerQuery]);
 
   const suppliersForCustomer = useMemo(
     () => suppliers.filter((s) => !customerId || s.customerId === customerId),
@@ -75,29 +62,13 @@ export default function CreateProductForm({
       <h3 className="form-section-title">{title}</h3>
       <div className="form-grid">
         <div className="full-row">
-          <label htmlFor="md-prod-customer-browse">Customer</label>
-          <div className="browse-field">
-            <input
-              id="md-prod-customer-browse"
-              readOnly
-              value={
-                selectedCustomer
-                  ? `${selectedCustomer.code ?? '-'} - ${selectedCustomer.name ?? '-'}`
-                  : 'Pilih customer…'
-              }
-              placeholder="Browse customer"
-              onClick={() => !readOnly && setCustomerModalOpen(true)}
-            />
-            <button
-              type="button"
-              className="browse-trigger"
-              onClick={() => setCustomerModalOpen(true)}
-              disabled={busy || readOnly}
-              aria-label="Browse customer"
-            >
-              Search
-            </button>
-          </div>
+          <CustomerBrowseField
+            label="Customer"
+            customers={customers}
+            selectedCustomerId={customerId}
+            onSelectCustomer={setCustomerId}
+            disabled={busy || readOnly}
+          />
         </div>
         <div>
           <label htmlFor="md-prod-sku">SKU</label>
@@ -139,53 +110,6 @@ export default function CreateProductForm({
           </select>
         </div>
       </div>
-      {customerModalOpen && !readOnly ? (
-        <div className="modal-backdrop" onClick={() => setCustomerModalOpen(false)}>
-          <div className="modal-card" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <strong>Pilih customer</strong>
-              <button type="button" className="btn-secondary" onClick={() => setCustomerModalOpen(false)}>
-                Tutup
-              </button>
-            </div>
-            <label htmlFor="md-prod-modal-search" className="modal-search-label">
-              Cari customer
-            </label>
-            <input
-              id="md-prod-modal-search"
-              className="modal-search"
-              placeholder="Cari code atau nama…"
-              value={customerQuery}
-              onChange={(e) => setCustomerQuery(e.target.value)}
-            />
-            <div className="modal-list">
-              <button
-                type="button"
-                className={!customerId ? 'modal-item active' : 'modal-item'}
-                onClick={() => {
-                  setCustomerId('');
-                  setCustomerModalOpen(false);
-                }}
-              >
-                — Belum pilih —
-              </button>
-              {browsedCustomers.map((c) => (
-                <button
-                  key={c.id}
-                  type="button"
-                  className={customerId === c.id ? 'modal-item active' : 'modal-item'}
-                  onClick={() => {
-                    setCustomerId(c.id);
-                    setCustomerModalOpen(false);
-                  }}
-                >
-                  {c.code} - {c.name}
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-      ) : null}
       {!readOnly ? (
         <div className="row">
           <button

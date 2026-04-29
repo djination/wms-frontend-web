@@ -29,6 +29,15 @@ type TaskApiRow = {
   salesOrder?: { orderNo?: string };
 };
 
+type OutboundEventApiRow = {
+  id: string;
+  eventCode: string;
+  note?: string | null;
+  createdAt: string;
+  salesOrder?: { id?: string; orderNo?: string; status?: string };
+  outboundTask?: { id?: string; taskType?: string; status?: string } | null;
+};
+
 export default function OutboundPanel({ section }: OutboundPanelProps) {
   const {
     apiBase,
@@ -48,6 +57,8 @@ export default function OutboundPanel({ section }: OutboundPanelProps) {
   const [actionBusy, setActionBusy] = useState<string | null>(null);
   const [tasks, setTasks] = useState<TaskApiRow[]>([]);
   const [tasksLoading, setTasksLoading] = useState(false);
+  const [events, setEvents] = useState<OutboundEventApiRow[]>([]);
+  const [eventsLoading, setEventsLoading] = useState(false);
 
   const loadTasks = useCallback(async () => {
     if (!token) return;
@@ -62,9 +73,23 @@ export default function OutboundPanel({ section }: OutboundPanelProps) {
     }
   }, [apiBase, token]);
 
+  const loadEvents = useCallback(async () => {
+    if (!token) return;
+    setEventsLoading(true);
+    try {
+      const data = await callApi(apiBase, token, 'GET', '/outbound/events');
+      setEvents(Array.isArray(data) ? (data as OutboundEventApiRow[]) : []);
+    } catch {
+      setEvents([]);
+    } finally {
+      setEventsLoading(false);
+    }
+  }, [apiBase, token]);
+
   useEffect(() => {
     if (section === 'tasks') void loadTasks();
-  }, [section, loadTasks]);
+    if (section === 'sales-orders' || section === 'tasks') void loadEvents();
+  }, [section, loadTasks, loadEvents]);
 
   const run = async (action: string, method: 'GET' | 'POST' | 'PATCH' | 'DELETE', path: string, payload?: unknown) => {
     setError(null);
@@ -76,6 +101,7 @@ export default function OutboundPanel({ section }: OutboundPanelProps) {
         setSuccess('Outbound berhasil');
         await refreshReferenceData();
         if (section === 'tasks' || action.startsWith('task-')) void loadTasks();
+        if (section === 'sales-orders' || section === 'tasks') void loadEvents();
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Request gagal');
@@ -121,6 +147,23 @@ export default function OutboundPanel({ section }: OutboundPanelProps) {
           <div className="row">
             <button type="button" className="btn-secondary" onClick={() => void loadTasks()} disabled={tasksLoading}>
               {tasksLoading ? 'Memuat task…' : 'Refresh tasks'}
+            </button>
+            <button
+              type="button"
+              className="btn-secondary"
+              onClick={() => void loadEvents()}
+              disabled={eventsLoading}
+              style={{ marginLeft: 8 }}
+            >
+              {eventsLoading ? 'Memuat events…' : 'Refresh events'}
+            </button>
+          </div>
+        ) : null}
+
+        {section === 'sales-orders' ? (
+          <div className="row">
+            <button type="button" className="btn-secondary" onClick={() => void loadEvents()} disabled={eventsLoading}>
+              {eventsLoading ? 'Memuat events…' : 'Refresh events'}
             </button>
           </div>
         ) : null}
@@ -261,6 +304,28 @@ export default function OutboundPanel({ section }: OutboundPanelProps) {
           deleteDialogTitle="Batalkan task?"
           deleteDialogDescription="Task outbound akan dibatalkan (soft delete) di server."
           deleteConfirmText="Batalkan"
+        />
+      ) : null}
+
+      {(section === 'sales-orders' || section === 'tasks') && events.length > 0 ? (
+        <SimpleTable
+          title="Outbound event logs (API)"
+          columns={[
+            { key: 'createdAt', label: 'Time', sortType: 'date' },
+            { key: 'eventCode', label: 'Event', sortType: 'text' },
+            { key: 'orderNo', label: 'Order', sortType: 'text' },
+            { key: 'taskType', label: 'Task', sortType: 'text' },
+            { key: 'note', label: 'Note', sortType: 'text' },
+          ]}
+          rows={events.map((ev) => ({
+            id: ev.id,
+            createdAt: ev.createdAt,
+            eventCode: ev.eventCode,
+            orderNo: ev.salesOrder?.orderNo ?? '',
+            taskType: ev.outboundTask?.taskType ?? '',
+            note: ev.note ?? '',
+          }))}
+          loading={eventsLoading}
         />
       ) : null}
     </>
