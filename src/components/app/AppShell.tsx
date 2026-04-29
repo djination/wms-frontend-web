@@ -25,20 +25,14 @@ const fallbackMenus: SidebarItem[] = [
     children: [
       { key: 'md-customers', label: 'Customers', href: '/master-data/customers' },
       { key: 'md-operators', label: 'Operators', href: '/master-data/operators' },
-      { key: 'md-suppliers', label: 'Suppliers', href: '/master-data/suppliers' },
       { key: 'md-warehouses', label: 'Warehouses', href: '/master-data/warehouses' },
       { key: 'md-areas', label: 'Areas', href: '/master-data/areas' },
       { key: 'md-zones', label: 'Zones', href: '/master-data/zones' },
       { key: 'md-bins', label: 'Bins', href: '/master-data/bins' },
-      { key: 'md-products', label: 'Products', href: '/master-data/products' },
       { key: 'md-uoms', label: 'UOM', href: '/master-data/uoms' },
+      { key: 'md-suppliers', label: 'Suppliers', href: '/master-data/suppliers' },
+      { key: 'md-products', label: 'Products', href: '/master-data/products' },
     ],
-  },
-  {
-    key: 'inventory',
-    label: 'Inventory',
-    href: '/inventory/balance',
-    children: [{ key: 'inv-balance', label: 'Inventory Balance', href: '/inventory/balance' }],
   },
   {
     key: 'inbound',
@@ -51,13 +45,31 @@ const fallbackMenus: SidebarItem[] = [
     ],
   },
   {
+    key: 'inventory',
+    label: 'Inventory',
+    href: '/inventory/balance',
+    children: [{ key: 'inv-balance', label: 'Inventory Balance', href: '/inventory/balance' }],
+  },
+  {
+    key: 'process-flow',
+    label: 'Process Flow',
+    href: '/process/transfers',
+    children: [
+      { key: 'pf-transfers', label: 'Internal Transfers', href: '/process/transfers' },
+      { key: 'pf-transformations', label: 'Material Transformations', href: '/process/transformations' },
+      { key: 'pf-recipes', label: 'Recipes (BOM)', href: '/process/recipes' },
+    ],
+  },
+  {
     key: 'outbound',
     label: 'Outbound',
     href: '/outbound/sales-orders',
     children: [
       { key: 'ob-so', label: 'Sales orders', href: '/outbound/sales-orders' },
+      { key: 'ob-allocations', label: 'Allocations', href: '/outbound/sales-orders' },
       { key: 'ob-waves', label: 'Waves', href: '/outbound/waves' },
       { key: 'ob-tasks', label: 'Tasks', href: '/outbound/tasks' },
+      { key: 'ob-events', label: 'Events', href: '/outbound/sales-orders' },
     ],
   },
   {
