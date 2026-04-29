@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { computeNextAsnNo, dateInputToYyyymmdd, getSalesOrderNoPrefix } from '@/src/lib/asn-no';
+import CustomerBrowseField from '@/src/components/ui/CustomerBrowseField';
+import ProductBrowseField from '@/src/components/ui/ProductBrowseField';
 import type { OptionItem, SalesOrderRow } from '@/src/lib/useWmsData';
 
 type Payload = {
@@ -54,7 +56,6 @@ export default function CreateSalesOrderForm({ busy, customers, warehouses, prod
     () => products.filter((p) => p.customerId === customerId),
     [products, customerId],
   );
-
   const requestedAtIso = orderDate.trim()
     ? new Date(`${orderDate.trim()}T00:00:00`).toISOString()
     : undefined;
@@ -95,22 +96,16 @@ export default function CreateSalesOrderForm({ busy, customers, warehouses, prod
           />
         </div>
         <div>
-          <label htmlFor="ob-so-customer">Customer</label>
-          <select
-            id="ob-so-customer"
-            value={customerId}
-            onChange={(e) => {
-              setCustomerId(e.target.value);
+          <CustomerBrowseField
+            label="Customer"
+            customers={customers}
+            selectedCustomerId={customerId}
+            onSelectCustomer={(nextCustomerId) => {
+              setCustomerId(nextCustomerId);
               setProductId('');
             }}
-          >
-            <option value="">Pilih customer</option>
-            {customers.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.code} — {c.name}
-              </option>
-            ))}
-          </select>
+            disabled={busy}
+          />
         </div>
         <div>
           <label htmlFor="ob-so-wh">Warehouse</label>
@@ -124,15 +119,14 @@ export default function CreateSalesOrderForm({ busy, customers, warehouses, prod
           </select>
         </div>
         <div>
-          <label htmlFor="ob-so-product">SKU / product</label>
-          <select id="ob-so-product" value={productId} onChange={(e) => setProductId(e.target.value)}>
-            <option value="">Pilih SKU (customer)</option>
-            {productsForCustomer.map((p) => (
-              <option key={p.id} value={p.id}>
-                {(p.sku ?? p.code) ?? p.id} — {p.name}
-              </option>
-            ))}
-          </select>
+          <ProductBrowseField
+            label="SKU / product"
+            products={productsForCustomer}
+            selectedProductId={productId}
+            onSelectProduct={setProductId}
+            disabled={busy || !customerId}
+            emptyMessage={customerId ? 'Tidak ada produk untuk customer ini.' : 'Pilih customer dulu.'}
+          />
         </div>
         <div>
           <label htmlFor="ob-so-qty">Qty ordered</label>

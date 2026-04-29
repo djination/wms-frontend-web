@@ -16,6 +16,12 @@ export function getWaveNoPrefix(): string {
   return raw && raw.length > 0 ? raw : 'WAVE';
 }
 
+/** Prefix transfer: `NEXT_PUBLIC_TRANSFER_NO_PREFIX` (default TRF). Format sama: PREFIX-yyyymmdd-001 */
+export function getTransferNoPrefix(): string {
+  const raw = process.env.NEXT_PUBLIC_TRANSFER_NO_PREFIX?.trim();
+  return raw && raw.length > 0 ? raw : 'TRF';
+}
+
 function escapeRegExp(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
