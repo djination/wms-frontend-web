@@ -15,8 +15,20 @@ type InboundPanelProps = {
 };
 
 export default function InboundPanel({ section }: InboundPanelProps) {
-  const { apiBase, token, customers, suppliers, uoms, warehouses, products, bins, asns, busy, refreshReferenceData } =
-    useWmsData();
+  const {
+    apiBase,
+    token,
+    customers,
+    suppliers,
+    uoms,
+    warehouses,
+    products,
+    bins,
+    zones,
+    asns,
+    busy,
+    refreshReferenceData,
+  } = useWmsData();
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [actionBusy, setActionBusy] = useState<string | null>(null);
@@ -89,6 +101,8 @@ export default function InboundPanel({ section }: InboundPanelProps) {
             busy={busy || actionBusy === 'receive-item'}
             asns={asns}
             products={products}
+            warehouses={warehouses}
+            zones={zones}
             bins={bins}
             onSubmit={async (payload) => {
               await run('receive-item', 'POST', '/inbound/receive', payload);
@@ -183,7 +197,7 @@ export default function InboundPanel({ section }: InboundPanelProps) {
                 </div>
                 <div className="asn-items-list">
                   {items.map((item, idx) => (
-                    <div key={`edit-asn-item-${idx}`} className="asn-item-row">
+                    <div key={`edit-asn-item-${idx}`} className="asn-item-row asn-item-row--inbound">
                       <div className="asn-item-field asn-item-field--product">
                         <label>Produk #{idx + 1}</label>
                         <select

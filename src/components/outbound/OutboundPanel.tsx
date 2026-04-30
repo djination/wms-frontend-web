@@ -24,9 +24,25 @@ type TaskApiRow = {
   taskType: string;
   status: string;
   qtyTask?: string;
+  qtyTaskInput?: string;
   qtyDone?: string;
+  conversionFactor?: string;
+  uomId?: string;
+  uom?: { id?: string; code?: string; name?: string };
   assignedTo?: string;
+  serialNos?: string[];
   salesOrder?: { orderNo?: string };
+  salesOrderItem?: {
+    product?: {
+      baseUomId?: string;
+      baseUom?: { id?: string; code?: string; name?: string };
+      uomConversions?: Array<{
+        fromUomId?: string;
+        fromUom?: { code?: string; name?: string };
+        isActive?: boolean;
+      }>;
+    };
+  };
 };
 
 type OutboundEventApiRow = {
@@ -116,7 +132,30 @@ export default function OutboundPanel({ section }: OutboundPanelProps) {
         .filter((t) => t.status !== 'DONE' && t.status !== 'CANCELLED')
         .map((t) => ({
           id: t.id,
-          label: `${t.salesOrder?.orderNo ?? '?'} | ${t.taskType} | ${t.status} | ${t.id.slice(0, 8)}…`,
+          label: `${t.salesOrder?.orderNo ?? '?'} | ${t.taskType} | ${t.status} | serial ${
+            Array.isArray(t.serialNos) ? t.serialNos.length : 0
+          } | ${t.id.slice(0, 8)}…`,
+          defaultUomId: t.uomId,
+          uomOptions: (() => {
+            const product = t.salesOrderItem?.product;
+            if (!product) return [] as Array<{ id: string; label: string }>;
+            const out: Array<{ id: string; label: string }> = [];
+            if (product.baseUomId) {
+              const code = product.baseUom?.code ?? product.baseUomId;
+              const name = product.baseUom?.name ?? '';
+              out.push({ id: product.baseUomId, label: `${code}${name ? ` - ${name}` : ''}` });
+            }
+            const convs = Array.isArray(product.uomConversions) ? product.uomConversions : [];
+            for (const conv of convs) {
+              if (conv?.isActive === false) continue;
+              const fromUomId = conv?.fromUomId ?? '';
+              if (!fromUomId || out.some((x) => x.id === fromUomId)) continue;
+              const fromCode = conv.fromUom?.code ?? fromUomId;
+              const fromName = conv.fromUom?.name ?? '';
+              out.push({ id: fromUomId, label: `${fromCode}${fromName ? ` - ${fromName}` : ''}` });
+            }
+            return out;
+          })(),
         })),
     [tasks],
   );
@@ -280,7 +319,10 @@ export default function OutboundPanel({ section }: OutboundPanelProps) {
           columns={[
             { key: 'orderNo', label: 'Order', sortType: 'text' },
             { key: 'taskType', label: 'Type', sortType: 'text' },
+            { key: 'qtyTaskDisplay', label: 'Qty Task (Input)', sortType: 'text' },
+            { key: 'qtyBaseDisplay', label: 'Qty Base (Task/Done)', sortType: 'text' },
             { key: 'status', label: 'Status', sortType: 'text' },
+            { key: 'serialSummary', label: 'Serial Reserved', sortType: 'text' },
             { key: 'id', label: 'Task ID', sortType: 'text' },
           ]}
           rows={tasks.map((t) => ({
@@ -289,6 +331,18 @@ export default function OutboundPanel({ section }: OutboundPanelProps) {
             status: t.status,
             assignedTo: t.assignedTo ?? '',
             orderNo: t.salesOrder?.orderNo ?? '',
+            qtyTaskDisplay: (() => {
+              const uomLabel = t.uom?.code ?? t.uom?.name ?? t.uomId ?? '-';
+              const qtyInput = t.qtyTaskInput ?? t.qtyTask ?? '0';
+              return `${qtyInput} ${uomLabel}`;
+            })(),
+            qtyBaseDisplay: `${t.qtyTask ?? '0'} / ${t.qtyDone ?? '0'}`,
+            qtyTask: t.qtyTask ?? '0',
+            qtyDone: t.qtyDone ?? '0',
+            qtyTaskInput: t.qtyTaskInput ?? t.qtyTask ?? '0',
+            uomLabel: t.uom?.code ?? t.uom?.name ?? t.uomId ?? '-',
+            conversionFactor: t.conversionFactor ?? '1',
+            serialSummary: Array.isArray(t.serialNos) && t.serialNos.length > 0 ? t.serialNos.join(', ') : '-',
           }))}
           loading={tasksLoading}
           renderEditModal={(row, onClose, ctx) => (

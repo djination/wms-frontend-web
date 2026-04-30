@@ -33,6 +33,8 @@ export type OptionItem = {
   sku?: string;
   /** Bin master: warehouse */
   warehouseId?: string;
+  /** Bin master: zone */
+  zoneId?: string;
   supplierIds?: string[];
   supplierLabel?: string;
 };

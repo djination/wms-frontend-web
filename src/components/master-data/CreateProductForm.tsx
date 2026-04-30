@@ -9,11 +9,12 @@ type Props = {
   readOnly?: boolean;
   customers: OptionItem[];
   suppliers: OptionItem[];
+  uoms: OptionItem[];
   title?: string;
   submitLabel?: string;
-  initialData?: { customerId?: string; sku?: string; name?: string; supplierIds?: string[] };
+  initialData?: { customerId?: string; sku?: string; name?: string; supplierIds?: string[]; baseUomId?: string };
   onCancel?: () => void;
-  onSubmit: (payload: { customerId: string; sku: string; name: string; supplierIds: string[] }) => Promise<void>;
+  onSubmit: (payload: { customerId: string; sku: string; name: string; supplierIds: string[]; baseUomId?: string }) => Promise<void>;
 };
 
 export default function CreateProductForm({
@@ -21,6 +22,7 @@ export default function CreateProductForm({
   readOnly = false,
   customers,
   suppliers,
+  uoms,
   title = 'Product',
   submitLabel = 'Create Product',
   initialData,
@@ -31,6 +33,7 @@ export default function CreateProductForm({
   const [sku, setSku] = useState('SKU-001');
   const [name, setName] = useState('Produk A 500ml');
   const [supplierIds, setSupplierIds] = useState<string[]>([]);
+  const [baseUomId, setBaseUomId] = useState('');
 
   const suppliersForCustomer = useMemo(
     () => suppliers.filter((s) => !customerId || s.customerId === customerId),
@@ -55,7 +58,8 @@ export default function CreateProductForm({
     setSku(initialData.sku ?? '');
     setName(initialData.name ?? '');
     setSupplierIds(initialData.supplierIds ?? []);
-  }, [initialData?.customerId, initialData?.sku, initialData?.name, initialData?.supplierIds]);
+    setBaseUomId(initialData.baseUomId ?? '');
+  }, [initialData?.customerId, initialData?.sku, initialData?.name, initialData?.supplierIds, initialData?.baseUomId]);
 
   return (
     <>
@@ -90,6 +94,22 @@ export default function CreateProductForm({
             placeholder="Nama produk"
           />
         </div>
+        <div>
+          <label htmlFor="md-prod-base-uom">Base UOM</label>
+          <select
+            id="md-prod-base-uom"
+            value={baseUomId}
+            onChange={(e) => setBaseUomId(e.target.value)}
+            disabled={readOnly}
+          >
+            <option value="">Pilih base UOM</option>
+            {uoms.filter((u) => u.isActive !== false).map((u) => (
+              <option key={u.id} value={u.id}>
+                {u.code ?? u.id} - {u.name ?? '-'}
+              </option>
+            ))}
+          </select>
+        </div>
         <div className="full-row">
           <label htmlFor="md-prod-suppliers">Suppliers (multi)</label>
           <select
@@ -114,7 +134,7 @@ export default function CreateProductForm({
         <div className="row">
           <button
             type="button"
-            onClick={() => onSubmit({ customerId, sku, name, supplierIds })}
+            onClick={() => onSubmit({ customerId, sku, name, supplierIds, baseUomId: baseUomId || undefined })}
             disabled={busy || !customerId}
           >
             {submitLabel}

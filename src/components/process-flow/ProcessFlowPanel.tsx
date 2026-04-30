@@ -7,7 +7,7 @@ import CustomerBrowseField from '@/src/components/ui/CustomerBrowseField';
 import ProductBrowseField from '@/src/components/ui/ProductBrowseField';
 import { callApi } from '@/src/lib/api';
 import { computeNextAsnNo, dateInputToYyyymmdd, getTransferNoPrefix } from '@/src/lib/asn-no';
-import { useWmsData } from '@/src/lib/useWmsData';
+import { OptionItem, useWmsData } from '@/src/lib/useWmsData';
 
 export type ProcessFlowSection = 'transfers' | 'transformations' | 'recipes';
 
@@ -79,7 +79,7 @@ export default function ProcessFlowPanel({ section }: Props) {
   const [transferCustomerId, setTransferCustomerId] = useState('');
   const [fromWarehouseId, setFromWarehouseId] = useState('');
   const [toWarehouseId, setToWarehouseId] = useState('');
-  const [transferLine, setTransferLine] = useState({ productId: '', sourceBinId: '', destinationBinId: '', qty: '1' });
+  const [transferLine, setTransferLine] = useState({ productId: '', sourceBinId: '', destinationBinId: '', qty: '1', uomId: '' });
   const [completeTransferId, setCompleteTransferId] = useState('');
 
   const [processNo, setProcessNo] = useState('');
@@ -87,8 +87,20 @@ export default function ProcessFlowPanel({ section }: Props) {
   const [processWarehouseId, setProcessWarehouseId] = useState('');
   const [outputProductId, setOutputProductId] = useState('');
   const [outputBinId, setOutputBinId] = useState('');
+  const [outputLotNo, setOutputLotNo] = useState('');
+  const [outputBatchNo, setOutputBatchNo] = useState('');
+  const [outputSerialNosText, setOutputSerialNosText] = useState('');
+  const [outputUomId, setOutputUomId] = useState('');
   const [qtyOutput, setQtyOutput] = useState('1');
-  const [inputLine, setInputLine] = useState({ productId: '', binId: '', qtyConsumed: '1' });
+  const [inputLine, setInputLine] = useState({
+    productId: '',
+    binId: '',
+    lotNo: '',
+    batchNo: '',
+    serialNosText: '',
+    uomId: '',
+    qtyConsumed: '1',
+  });
   const [completeProcessId, setCompleteProcessId] = useState('');
   const [recipeCode, setRecipeCode] = useState('');
   const [recipeCustomerId, setRecipeCustomerId] = useState('');
@@ -109,6 +121,7 @@ export default function ProcessFlowPanel({ section }: Props) {
   const [fromRecipeId, setFromRecipeId] = useState('');
   const [fromRecipeWarehouseId, setFromRecipeWarehouseId] = useState('');
   const [fromRecipeOutputBinId, setFromRecipeOutputBinId] = useState('');
+  const [fromRecipeOutputUomId, setFromRecipeOutputUomId] = useState('');
   const [fromRecipeQtyOutput, setFromRecipeQtyOutput] = useState('1000');
   const [fromRecipeInputBins, setFromRecipeInputBins] = useState<Record<string, string>>({});
   const [inventoryBalances, setInventoryBalances] = useState<InventoryBalanceRow[]>([]);
@@ -147,9 +160,93 @@ export default function ProcessFlowPanel({ section }: Props) {
     () => products.filter((p) => !transferCustomerId || p.customerId === transferCustomerId),
     [products, transferCustomerId],
   );
+  const selectedTransferProduct = useMemo(
+    () => transferProductsForCustomer.find((p) => p.id === transferLine.productId),
+    [transferProductsForCustomer, transferLine.productId],
+  );
+  const selectedTransferProductUom = useMemo(() => {
+    if (!selectedTransferProduct) return { id: '', label: '-', options: [] as Array<{ id: string; label: string }> };
+    const row = selectedTransferProduct as Record<string, unknown>;
+    const baseUom = (row.baseUom ?? null) as Record<string, unknown> | null;
+    const uomId = row.baseUomId != null ? String(row.baseUomId) : '';
+    const uomCode = baseUom?.code != null ? String(baseUom.code) : uomId;
+    const uomName = baseUom?.name != null ? String(baseUom.name) : '';
+    const options: Array<{ id: string; label: string }> = [];
+    if (uomId) {
+      options.push({ id: uomId, label: `${uomCode}${uomName ? ` - ${uomName}` : ''}` || '-' });
+    }
+    const conversions = Array.isArray(row.uomConversions) ? (row.uomConversions as Array<Record<string, unknown>>) : [];
+    for (const conv of conversions) {
+      if (conv.isActive === false) continue;
+      const fromUom = (conv.fromUom ?? null) as Record<string, unknown> | null;
+      const fromUomId = conv.fromUomId != null ? String(conv.fromUomId) : '';
+      if (!fromUomId || options.some((o) => o.id === fromUomId)) continue;
+      const fromCode = fromUom?.code != null ? String(fromUom.code) : fromUomId;
+      const fromName = fromUom?.name != null ? String(fromUom.name) : '';
+      options.push({ id: fromUomId, label: `${fromCode}${fromName ? ` - ${fromName}` : ''}` });
+    }
+    return {
+      id: uomId,
+      label: `${uomCode}${uomName ? ` - ${uomName}` : ''}` || '-',
+      options,
+    };
+  }, [selectedTransferProduct]);
+  useEffect(() => {
+    if (!transferLine.productId) return;
+    const currentUomId = transferLine.uomId;
+    if (currentUomId && selectedTransferProductUom.options.some((opt) => opt.id === currentUomId)) return;
+    setTransferLine((prev) => ({
+      ...prev,
+      uomId: selectedTransferProductUom.id || selectedTransferProductUom.options[0]?.id || '',
+    }));
+  }, [transferLine.productId, transferLine.uomId, selectedTransferProductUom]);
   const processProductsForCustomer = useMemo(
     () => (processCustomerId ? products.filter((p) => p.customerId === processCustomerId) : []),
     [products, processCustomerId],
+  );
+  const selectedRecipe = useMemo(() => recipes.find((r) => r.id === fromRecipeId), [recipes, fromRecipeId]);
+  const selectedOutputProcessProduct = useMemo(
+    () => processProductsForCustomer.find((p) => p.id === outputProductId),
+    [processProductsForCustomer, outputProductId],
+  );
+  const selectedInputProcessProduct = useMemo(
+    () => processProductsForCustomer.find((p) => p.id === inputLine.productId),
+    [processProductsForCustomer, inputLine.productId],
+  );
+  const selectedFromRecipeOutputProduct = useMemo(
+    () => processProductsForCustomer.find((p) => p.id === (selectedRecipe?.outputProductId ?? '')),
+    [processProductsForCustomer, selectedRecipe?.outputProductId],
+  );
+  const uomOptionsForProduct = useCallback((product: OptionItem | undefined) => {
+    if (!product) return [] as Array<{ id: string; label: string }>;
+    const row = product as Record<string, unknown>;
+    const options: Array<{ id: string; label: string }> = [];
+    const baseUom = (row.baseUom ?? null) as Record<string, unknown> | null;
+    const baseUomId = row.baseUomId != null ? String(row.baseUomId) : '';
+    if (baseUomId) {
+      options.push({
+        id: baseUomId,
+        label: `${baseUom?.code != null ? String(baseUom.code) : baseUomId}${baseUom?.name != null ? ` - ${String(baseUom.name)}` : ''}`,
+      });
+    }
+    const conversions = Array.isArray(row.uomConversions) ? (row.uomConversions as Array<Record<string, unknown>>) : [];
+    for (const conv of conversions) {
+      if (conv.isActive === false) continue;
+      const fromUom = (conv.fromUom ?? null) as Record<string, unknown> | null;
+      const fromUomId = conv.fromUomId != null ? String(conv.fromUomId) : '';
+      if (!fromUomId || options.some((opt) => opt.id === fromUomId)) continue;
+      options.push({
+        id: fromUomId,
+        label: `${fromUom?.code != null ? String(fromUom.code) : fromUomId}${fromUom?.name != null ? ` - ${String(fromUom.name)}` : ''}`,
+      });
+    }
+    return options;
+  }, []);
+  const outputUomOptions = useMemo(() => uomOptionsForProduct(selectedOutputProcessProduct), [uomOptionsForProduct, selectedOutputProcessProduct]);
+  const inputUomOptions = useMemo(() => uomOptionsForProduct(selectedInputProcessProduct), [uomOptionsForProduct, selectedInputProcessProduct]);
+  const fromRecipeOutputUomOptions = useMemo(
+    () => uomOptionsForProduct(selectedFromRecipeOutputProduct),
+    [uomOptionsForProduct, selectedFromRecipeOutputProduct],
   );
   const recipeProductsForCustomer = useMemo(
     () => (recipeCustomerId ? products.filter((p) => p.customerId === recipeCustomerId) : []),
@@ -160,8 +257,6 @@ export default function ProcessFlowPanel({ section }: Props) {
     if (!editRecipe) return products;
     return products.filter((p) => p.customerId === editRecipe.customerId);
   }, [products, recipes, editRecipeId]);
-
-  const selectedRecipe = useMemo(() => recipes.find((r) => r.id === fromRecipeId), [recipes, fromRecipeId]);
 
   const loadData = useCallback(async () => {
     if (!token) return;
@@ -229,8 +324,26 @@ export default function ProcessFlowPanel({ section }: Props) {
     setFromRecipeInputBins((prev) => ({ ...nextMappings, ...prev }));
   }, [inventoryBalances, fromRecipeWarehouseId, selectedRecipe]);
 
+  useEffect(() => {
+    if (!outputProductId) return;
+    if (outputUomId && outputUomOptions.some((opt) => opt.id === outputUomId)) return;
+    setOutputUomId(outputUomOptions[0]?.id ?? '');
+  }, [outputProductId, outputUomId, outputUomOptions]);
+
+  useEffect(() => {
+    if (!inputLine.productId) return;
+    if (inputLine.uomId && inputUomOptions.some((opt) => opt.id === inputLine.uomId)) return;
+    setInputLine((prev) => ({ ...prev, uomId: inputUomOptions[0]?.id ?? '' }));
+  }, [inputLine.productId, inputLine.uomId, inputUomOptions]);
+
+  useEffect(() => {
+    if (!selectedRecipe?.outputProductId) return;
+    if (fromRecipeOutputUomId && fromRecipeOutputUomOptions.some((opt) => opt.id === fromRecipeOutputUomId)) return;
+    setFromRecipeOutputUomId(fromRecipeOutputUomOptions[0]?.id ?? '');
+  }, [selectedRecipe?.outputProductId, fromRecipeOutputUomId, fromRecipeOutputUomOptions]);
+
   const createTransfer = async () => {
-    if (!transferNo || !transferCustomerId || !fromWarehouseId || !toWarehouseId) return;
+    if (!transferNo || !transferCustomerId || !fromWarehouseId || !toWarehouseId || !transferLine.uomId) return;
     setActionBusy('create-transfer');
     setError(null);
     setSuccess(null);
@@ -279,8 +392,27 @@ export default function ProcessFlowPanel({ section }: Props) {
         warehouseId: processWarehouseId,
         outputProductId,
         outputBinId,
+        outputLotNo: outputLotNo.trim() || undefined,
+        outputBatchNo: outputBatchNo.trim() || undefined,
+        outputSerialNos: outputSerialNosText
+          .split(',')
+          .map((s) => s.trim())
+          .filter(Boolean),
+        outputUomId: outputUomId || undefined,
         qtyOutput: Number(qtyOutput),
-        inputs: [{ ...inputLine, qtyConsumed: Number(inputLine.qtyConsumed) }],
+        inputs: [
+          {
+            ...inputLine,
+            lotNo: inputLine.lotNo.trim() || undefined,
+            batchNo: inputLine.batchNo.trim() || undefined,
+            serialNos: inputLine.serialNosText
+              .split(',')
+              .map((s) => s.trim())
+              .filter(Boolean),
+            uomId: inputLine.uomId || undefined,
+            qtyConsumed: Number(inputLine.qtyConsumed),
+          },
+        ],
       });
       setSuccess('Material transformation created');
       await loadData();
@@ -388,6 +520,7 @@ export default function ProcessFlowPanel({ section }: Props) {
         recipeId: fromRecipeId,
         warehouseId: fromRecipeWarehouseId,
         outputBinId: fromRecipeOutputBinId,
+        outputUomId: fromRecipeOutputUomId || undefined,
         qtyOutput: Number(fromRecipeQtyOutput),
         inputBins: selectedLines.map((line) => ({
           productId: line.productId,
@@ -485,7 +618,7 @@ export default function ProcessFlowPanel({ section }: Props) {
                 selectedCustomerId={transferCustomerId}
                 onSelectCustomer={(nextCustomerId) => {
                   setTransferCustomerId(nextCustomerId);
-                  setTransferLine((prev) => ({ ...prev, productId: '' }));
+                  setTransferLine((prev) => ({ ...prev, productId: '', uomId: '' }));
                 }}
               />
             </div>
@@ -494,20 +627,33 @@ export default function ProcessFlowPanel({ section }: Props) {
                 label="Line Product"
                 products={transferProductsForCustomer}
                 selectedProductId={transferLine.productId}
-                onSelectProduct={(nextProductId) => setTransferLine((p) => ({ ...p, productId: nextProductId }))}
+                onSelectProduct={(nextProductId) => setTransferLine((p) => ({ ...p, productId: nextProductId, uomId: '' }))}
                 disabled={!transferCustomerId}
                 emptyMessage={transferCustomerId ? 'Tidak ada produk untuk customer ini.' : 'Pilih customer dulu.'}
               />
             </div>
             <div>
               <label>Line Qty</label>
-              <input
-                type="number"
-                min={0.0001}
-                step="any"
-                value={transferLine.qty}
-                onChange={(e) => setTransferLine((p) => ({ ...p, qty: e.target.value }))}
-              />
+              <div className="qty-with-uom">
+                <input
+                  type="number"
+                  min={0.0001}
+                  step="any"
+                  value={transferLine.qty}
+                  onChange={(e) => setTransferLine((p) => ({ ...p, qty: e.target.value }))}
+                />
+                <select value={transferLine.uomId} onChange={(e) => setTransferLine((p) => ({ ...p, uomId: e.target.value }))}>
+                  {selectedTransferProductUom.options.length > 0 ? (
+                    selectedTransferProductUom.options.map((opt) => (
+                      <option key={opt.id} value={opt.id}>
+                        {opt.label}
+                      </option>
+                    ))
+                  ) : (
+                    <option value="">-</option>
+                  )}
+                </select>
+              </div>
             </div>
             <div>
               <label>From Warehouse</label>
@@ -573,7 +719,23 @@ export default function ProcessFlowPanel({ section }: Props) {
             </div>
           </div>
           <div className="row">
-            <button type="button" disabled={busy || !!actionBusy} onClick={() => void createTransfer()}>
+            <button
+              type="button"
+              disabled={
+                busy ||
+                !!actionBusy ||
+                !transferNo ||
+                !transferCustomerId ||
+                !fromWarehouseId ||
+                !toWarehouseId ||
+                !transferLine.productId ||
+                !transferLine.sourceBinId ||
+                !transferLine.destinationBinId ||
+                !transferLine.uomId ||
+                Number(transferLine.qty) <= 0
+              }
+              onClick={() => void createTransfer()}
+            >
               Buat Transfer
             </button>
           </div>
@@ -636,7 +798,10 @@ export default function ProcessFlowPanel({ section }: Props) {
                 label="Output Product"
                 products={processProductsForCustomer}
                 selectedProductId={outputProductId}
-                onSelectProduct={setOutputProductId}
+                onSelectProduct={(nextProductId) => {
+                  setOutputProductId(nextProductId);
+                  setOutputUomId('');
+                }}
                 disabled={!processCustomerId}
                 emptyMessage={processCustomerId ? 'Tidak ada produk untuk customer ini.' : 'Pilih customer dulu.'}
               />
@@ -654,14 +819,43 @@ export default function ProcessFlowPanel({ section }: Props) {
             </div>
             <div>
               <label>Qty Output</label>
-              <input type="number" min={0.0001} step="any" value={qtyOutput} onChange={(e) => setQtyOutput(e.target.value)} />
+              <div className="qty-with-uom">
+                <input type="number" min={0.0001} step="any" value={qtyOutput} onChange={(e) => setQtyOutput(e.target.value)} />
+                <select value={outputUomId} onChange={(e) => setOutputUomId(e.target.value)}>
+                  {outputUomOptions.length > 0 ? (
+                    outputUomOptions.map((opt) => (
+                      <option key={opt.id} value={opt.id}>
+                        {opt.label}
+                      </option>
+                    ))
+                  ) : (
+                    <option value="">-</option>
+                  )}
+                </select>
+              </div>
+            </div>
+            <div>
+              <label>Output Lot No</label>
+              <input value={outputLotNo} onChange={(e) => setOutputLotNo(e.target.value)} placeholder="Opsional" />
+            </div>
+            <div>
+              <label>Output Batch No</label>
+              <input value={outputBatchNo} onChange={(e) => setOutputBatchNo(e.target.value)} placeholder="Opsional" />
+            </div>
+            <div>
+              <label>Output Serial Nos</label>
+              <input
+                value={outputSerialNosText}
+                onChange={(e) => setOutputSerialNosText(e.target.value)}
+                placeholder="Pisahkan koma, contoh: SN-OUT-001,SN-OUT-002"
+              />
             </div>
             <div>
               <ProductBrowseField
                 label="Input Product"
                 products={processProductsForCustomer}
                 selectedProductId={inputLine.productId}
-                onSelectProduct={(nextProductId) => setInputLine((p) => ({ ...p, productId: nextProductId }))}
+                onSelectProduct={(nextProductId) => setInputLine((p) => ({ ...p, productId: nextProductId, uomId: '' }))}
                 disabled={!processCustomerId}
                 emptyMessage={processCustomerId ? 'Tidak ada produk untuk customer ini.' : 'Pilih customer dulu.'}
               />
@@ -679,12 +873,41 @@ export default function ProcessFlowPanel({ section }: Props) {
             </div>
             <div>
               <label>Qty Consumed</label>
+              <div className="qty-with-uom">
+                <input
+                  type="number"
+                  min={0.0001}
+                  step="any"
+                  value={inputLine.qtyConsumed}
+                  onChange={(e) => setInputLine((p) => ({ ...p, qtyConsumed: e.target.value }))}
+                />
+                <select value={inputLine.uomId} onChange={(e) => setInputLine((p) => ({ ...p, uomId: e.target.value }))}>
+                  {inputUomOptions.length > 0 ? (
+                    inputUomOptions.map((opt) => (
+                      <option key={opt.id} value={opt.id}>
+                        {opt.label}
+                      </option>
+                    ))
+                  ) : (
+                    <option value="">-</option>
+                  )}
+                </select>
+              </div>
+            </div>
+            <div>
+              <label>Input Lot No</label>
+              <input value={inputLine.lotNo} onChange={(e) => setInputLine((p) => ({ ...p, lotNo: e.target.value }))} placeholder="Opsional" />
+            </div>
+            <div>
+              <label>Input Batch No</label>
+              <input value={inputLine.batchNo} onChange={(e) => setInputLine((p) => ({ ...p, batchNo: e.target.value }))} placeholder="Opsional" />
+            </div>
+            <div>
+              <label>Input Serial Nos</label>
               <input
-                type="number"
-                min={0.0001}
-                step="any"
-                value={inputLine.qtyConsumed}
-                onChange={(e) => setInputLine((p) => ({ ...p, qtyConsumed: e.target.value }))}
+                value={inputLine.serialNosText}
+                onChange={(e) => setInputLine((p) => ({ ...p, serialNosText: e.target.value }))}
+                placeholder="Pisahkan koma, contoh: SN-RAW-001,SN-RAW-002"
               />
             </div>
           </div>
@@ -984,13 +1207,26 @@ export default function ProcessFlowPanel({ section }: Props) {
             </div>
             <div>
               <label>Qty Output Target</label>
-              <input
-                type="number"
-                min={0.0001}
-                step="any"
-                value={fromRecipeQtyOutput}
-                onChange={(e) => setFromRecipeQtyOutput(e.target.value)}
-              />
+              <div className="qty-with-uom">
+                <input
+                  type="number"
+                  min={0.0001}
+                  step="any"
+                  value={fromRecipeQtyOutput}
+                  onChange={(e) => setFromRecipeQtyOutput(e.target.value)}
+                />
+                <select value={fromRecipeOutputUomId} onChange={(e) => setFromRecipeOutputUomId(e.target.value)}>
+                  {fromRecipeOutputUomOptions.length > 0 ? (
+                    fromRecipeOutputUomOptions.map((opt) => (
+                      <option key={opt.id} value={opt.id}>
+                        {opt.label}
+                      </option>
+                    ))
+                  ) : (
+                    <option value="">-</option>
+                  )}
+                </select>
+              </div>
             </div>
           </div>
           {selectedRecipe ? (
@@ -1105,3 +1341,5 @@ export default function ProcessFlowPanel({ section }: Props) {
     </>
   );
 }
+
+

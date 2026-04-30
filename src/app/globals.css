@@ -345,6 +345,37 @@ body {
   align-items: start;
 }
 
+.asn-item-row--inbound {
+  grid-template-columns: minmax(220px, 1fr) minmax(180px, 220px) minmax(92px, 112px) minmax(120px, 160px) auto;
+  align-items: end;
+}
+
+.asn-item-row--inbound .asn-item-field--product .browse-field {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+}
+
+.asn-item-row--inbound .asn-item-field label {
+  margin: 0;
+  min-height: 16px;
+}
+
+.asn-item-row--inbound .asn-item-field input,
+.asn-item-row--inbound .asn-item-field select,
+.asn-item-row--inbound .asn-item-field .browse-trigger {
+  height: 36px;
+}
+
+.asn-item-row--inbound .asn-item-field--product .browse-trigger {
+  min-width: 72px;
+  padding: 0 12px;
+}
+
+.asn-item-row--inbound .asn-item-field--action {
+  align-self: end;
+}
+
 .asn-item-field {
   display: flex;
   flex-direction: column;
@@ -426,6 +457,18 @@ body {
 
 .form-grid .full-row {
   grid-column: 1 / -1;
+}
+
+.qty-with-uom {
+  display: grid;
+  grid-template-columns: minmax(0, 8fr) minmax(90px, 1fr);
+  gap: 8px;
+  align-items: center;
+}
+
+.qty-with-uom input,
+.qty-with-uom select {
+  margin-bottom: 0;
 }
 
 .address-grid {

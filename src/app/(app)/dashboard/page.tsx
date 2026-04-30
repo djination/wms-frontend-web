@@ -208,6 +208,38 @@ export default function DashboardPage() {
           </section>
 
           <section className="card">
+            <h3>Process flow (periode)</h3>
+            <p className="muted">Transfer antar gudang dan transformasi material (selesai di periode, sesuai filter).</p>
+            <div className="kpi-grid">
+              <div className="kpi">
+                <div className="kpi-label">Transfer selesai</div>
+                <div className="kpi-value">{kpi.processFlow.transfersCompletedInPeriod}</div>
+              </div>
+              <div className="kpi">
+                <div className="kpi-label">Qty pindah (line transfer)</div>
+                <div className="kpi-value" style={{ fontSize: 16 }}>
+                  {kpi.processFlow.transferQtyMovedInPeriod}
+                </div>
+              </div>
+              <div className="kpi">
+                <div className="kpi-label">Transformasi selesai</div>
+                <div className="kpi-value">{kpi.processFlow.transformationsCompletedInPeriod}</div>
+              </div>
+              <div className="kpi">
+                <div className="kpi-label">Yield (output ÷ input konsumsi)</div>
+                <div className="kpi-value">{formatPct(kpi.processFlow.kitchenYieldRatioOutputOverInput)}</div>
+              </div>
+              <div className="kpi">
+                <div className="kpi-label">Qty output / input (transform)</div>
+                <div className="kpi-value" style={{ fontSize: 14 }}>
+                  {kpi.processFlow.transformationOutputQtyInPeriod} /{' '}
+                  {kpi.processFlow.transformationInputQtyConsumedInPeriod}
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section className="card">
             <h3>Inventory</h3>
             <p className="muted">Snapshot: {new Date(kpi.inventory.snapshotAsOf).toLocaleString()}</p>
             <div className="kpi-grid">
