@@ -39,4 +39,12 @@ export type KpiSummary = {
       amount: string;
     }>;
   };
+  processFlow: {
+    transfersCompletedInPeriod: number;
+    transferQtyMovedInPeriod: string;
+    transformationsCompletedInPeriod: number;
+    transformationOutputQtyInPeriod: string;
+    transformationInputQtyConsumedInPeriod: string;
+    kitchenYieldRatioOutputOverInput: number | null;
+  };
 };

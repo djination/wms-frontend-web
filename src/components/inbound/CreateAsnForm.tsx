@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import CustomerBrowseField from '@/src/components/ui/CustomerBrowseField';
 import ProductBrowseField from '@/src/components/ui/ProductBrowseField';
 import { computeNextAsnNo, dateInputToYyyymmdd, getAsnNoPrefix } from '@/src/lib/asn-no';
+import { filterWarehousesForCustomer } from '@/src/lib/warehouse-customer-filter';
 import { OptionItem } from '@/src/lib/useWmsData';
 
 type Payload = {
@@ -63,25 +64,10 @@ export default function CreateAsnForm({ busy, customers, suppliers, uoms, wareho
   );
 
 
-  const warehousesForSelectedCustomer = useMemo(() => {
-    if (!customerId) return warehouses;
-    return warehouses.filter((raw) => {
-      const row = raw as unknown as Record<string, unknown>;
-      const warehouseType = String(row.type ?? '');
-      if (warehouseType === 'DEDICATED') {
-        const dedicatedCustomerId = row.customerId != null ? String(row.customerId) : '';
-        return !dedicatedCustomerId || dedicatedCustomerId === customerId;
-      }
-      const mappings = Array.isArray(row.customerMappings)
-        ? (row.customerMappings as Record<string, unknown>[])
-        : [];
-      const mappedCustomerIds = mappings
-        .map((m) => (m.customerId != null ? String(m.customerId) : ''))
-        .filter(Boolean);
-      if (mappedCustomerIds.length === 0) return true;
-      return mappedCustomerIds.includes(customerId);
-    });
-  }, [warehouses, customerId]);
+  const warehousesForSelectedCustomer = useMemo(
+    () => filterWarehousesForCustomer(warehouses, customerId || undefined),
+    [warehouses, customerId],
+  );
 
   useEffect(() => {
     setItems((prev) =>
@@ -184,7 +170,7 @@ export default function CreateAsnForm({ busy, customers, suppliers, uoms, wareho
           <div className="asn-items-list">
             {items.map((item, idx) => {
               return (
-                <div key={`asn-item-${idx}`} className="asn-item-row">
+                <div key={`asn-item-${idx}`} className="asn-item-row asn-item-row--inbound">
                   <div className="asn-item-field asn-item-field--product">
                     <ProductBrowseField
                       label={`Produk #${idx + 1}`}

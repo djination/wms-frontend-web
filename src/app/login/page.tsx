@@ -24,14 +24,19 @@ export default function LoginPage() {
     setBusy(true);
     setError(null);
     try {
-      const data = await callApi(apiBase, '', 'POST', '/auth/login', { email, password });
+      const data = await callApi(apiBase, '', 'POST', '/auth/login', { email, password, platform: 'web' });
       const token = (data as { accessToken?: string })?.accessToken;
       if (!token) throw new Error('Token tidak ditemukan');
       setStoredApiBase(apiBase);
       setStoredToken(token);
       router.replace('/dashboard');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Login gagal');
+      const message = err instanceof Error ? err.message : 'Login gagal';
+      if (message.toLowerCase().includes('no web access')) {
+        setError('Akun ini tidak memiliki akses ke aplikasi web. Hubungi admin.');
+      } else {
+        setError(message);
+      }
     } finally {
       setBusy(false);
     }

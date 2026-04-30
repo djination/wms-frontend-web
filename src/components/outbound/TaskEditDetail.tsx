@@ -8,13 +8,20 @@ type Props = {
   onClose: () => void;
   busy: boolean;
   readOnly?: boolean;
-  onUpdate: (id: string, body: { assignedTo?: string; status?: string }) => Promise<void>;
+  onUpdate: (id: string, body: { assignedTo?: string; status?: string; serialNos?: string[] }) => Promise<void>;
 };
 
 export default function TaskEditDetail({ row, onClose, busy, readOnly = false, onUpdate }: Props) {
   const id = String(row.id ?? '');
   const [assignedTo, setAssignedTo] = useState(String(row.assignedTo ?? ''));
   const [status, setStatus] = useState(String(row.status ?? 'OPEN'));
+  const [serialNosText, setSerialNosText] = useState(
+    String(row.serialSummary ?? '')
+      .split(',')
+      .map((s) => s.trim())
+      .filter((s) => s && s !== '-')
+      .join(', '),
+  );
   const [localError, setLocalError] = useState<string | null>(null);
 
   const save = async () => {
@@ -23,6 +30,10 @@ export default function TaskEditDetail({ row, onClose, busy, readOnly = false, o
       await onUpdate(id, {
         assignedTo: assignedTo.trim() || undefined,
         status,
+        serialNos: serialNosText
+          .split(',')
+          .map((s) => s.trim())
+          .filter(Boolean),
       });
       onClose();
     } catch (error) {
@@ -38,6 +49,28 @@ export default function TaskEditDetail({ row, onClose, busy, readOnly = false, o
         <div>
           <label htmlFor="task-edit-id">Task ID</label>
           <input id="task-edit-id" value={id} readOnly disabled />
+        </div>
+        <div>
+          <label htmlFor="task-edit-qty-input">Qty Input</label>
+          <input
+            id="task-edit-qty-input"
+            value={`${String(row.qtyTaskInput ?? row.qtyTask ?? '0')} ${String(row.uomLabel ?? '-')}`}
+            readOnly
+            disabled
+          />
+        </div>
+        <div>
+          <label htmlFor="task-edit-qty-base">Qty Base (Task/Done)</label>
+          <input
+            id="task-edit-qty-base"
+            value={`${String(row.qtyTask ?? '0')} / ${String(row.qtyDone ?? '0')}`}
+            readOnly
+            disabled
+          />
+        </div>
+        <div>
+          <label htmlFor="task-edit-conv">Conversion Factor</label>
+          <input id="task-edit-conv" value={String(row.conversionFactor ?? '1')} readOnly disabled />
         </div>
         <div>
           <label htmlFor="task-edit-assigned">Assigned To</label>
@@ -62,6 +95,17 @@ export default function TaskEditDetail({ row, onClose, busy, readOnly = false, o
             <option value="DONE">DONE</option>
             <option value="CANCELLED">CANCELLED</option>
           </select>
+        </div>
+        <div className="full-row">
+          <label htmlFor="task-edit-serials">Serial Nos (reserved)</label>
+          <input
+            id="task-edit-serials"
+            readOnly={readOnly}
+            value={serialNosText}
+            onChange={(e) => setSerialNosText(e.target.value)}
+            placeholder="Pisahkan koma, contoh: SN-001,SN-002"
+            disabled={!readOnly && busy}
+          />
         </div>
       </div>
       {localError ? <p className="error">{localError}</p> : null}

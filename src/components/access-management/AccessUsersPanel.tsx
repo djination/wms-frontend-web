@@ -15,6 +15,8 @@ export default function AccessUsersPanel() {
   const [email, setEmail] = useState('user@wms.local');
   const [name, setName] = useState('New User');
   const [password, setPassword] = useState('password123');
+  const [createCanAccessWeb, setCreateCanAccessWeb] = useState(true);
+  const [createCanAccessMobile, setCreateCanAccessMobile] = useState(false);
   const [createRoleIds, setCreateRoleIds] = useState<string[]>([]);
   const [createOperatorCompanyId, setCreateOperatorCompanyId] = useState('');
   const [createWarehouseIds, setCreateWarehouseIds] = useState<string[]>([]);
@@ -65,6 +67,17 @@ export default function AccessUsersPanel() {
       })),
     [roles],
   );
+  const adminRoleIds = useMemo(() => {
+    return new Set(
+      roles
+        .filter((role) => {
+          const code = String((role.code as string | undefined) ?? '').toUpperCase();
+          return code === 'ADMIN' || code === 'SYSTEM_ADMIN';
+        })
+        .map((role) => String(role.id ?? ''))
+        .filter(Boolean),
+    );
+  }, [roles]);
   const filteredRoleOptions = useMemo(() => {
     const needle = assignRoleQuery.trim().toLowerCase();
     if (!needle) return roleOptions;
@@ -145,6 +158,27 @@ export default function AccessUsersPanel() {
               placeholder="Password"
               autoComplete="new-password"
             />
+          </div>
+          <div className="full-row">
+            <label>Channel Access</label>
+            <div className="selection-list">
+              <label className="selection-item">
+                <input
+                  type="checkbox"
+                  checked={createCanAccessWeb}
+                  onChange={(e) => setCreateCanAccessWeb(e.target.checked)}
+                />
+                Web
+              </label>
+              <label className="selection-item">
+                <input
+                  type="checkbox"
+                  checked={createCanAccessMobile}
+                  onChange={(e) => setCreateCanAccessMobile(e.target.checked)}
+                />
+                Mobile
+              </label>
+            </div>
           </div>
           <div className="full-row" ref={createRolePickerRef}>
             <label htmlFor="acc-user-create-roles-search">Roles</label>
@@ -251,15 +285,19 @@ export default function AccessUsersPanel() {
           type="button"
           onClick={() =>
             run(
-              () =>
-                callApi(apiBase, token, 'POST', '/access/users', {
+              () => {
+                const hasAdminRole = createRoleIds.some((roleId) => adminRoleIds.has(roleId));
+                return callApi(apiBase, token, 'POST', '/access/users', {
                   email,
                   name,
                   password,
                   roleIds: createRoleIds,
                   operatorCompanyId: createOperatorCompanyId || undefined,
                   warehouseIds: createWarehouseIds,
-                }),
+                  canAccessWeb: hasAdminRole ? true : createCanAccessWeb,
+                  canAccessMobile: hasAdminRole ? true : createCanAccessMobile,
+                });
+              },
               'User created',
             )
           }
@@ -387,6 +425,16 @@ export default function AccessUsersPanel() {
               return `${mappings.length} warehouse`;
             },
           },
+          {
+            key: 'canAccessWeb',
+            label: 'Web Access',
+            renderCell: (row) => ((row.canAccessWeb as boolean | undefined) ? 'Yes' : 'No'),
+          },
+          {
+            key: 'canAccessMobile',
+            label: 'Mobile Access',
+            renderCell: (row) => ((row.canAccessMobile as boolean | undefined) ? 'Yes' : 'No'),
+          },
           { key: 'isActive', label: 'Active' },
         ]}
         rows={users as Array<Record<string, string | number | null | undefined>>}
@@ -411,6 +459,8 @@ export default function AccessUsersPanel() {
             const [editName, setEditName] = useState(String(row.name ?? '').trim());
             const [editPassword, setEditPassword] = useState('');
             const [editActive, setEditActive] = useState(Boolean(row.isActive));
+            const [editCanAccessWeb, setEditCanAccessWeb] = useState(Boolean(fullUser?.canAccessWeb));
+            const [editCanAccessMobile, setEditCanAccessMobile] = useState(Boolean(fullUser?.canAccessMobile));
             const [editRoleIds, setEditRoleIds] = useState<string[]>(initialRoleIds);
             const [editOperatorCompanyId, setEditOperatorCompanyId] = useState(
               String((fullUser?.operatorCompanyId as string | undefined) ?? ''),
@@ -518,6 +568,27 @@ export default function AccessUsersPanel() {
                   </div>
                 </div>
                 <div className="full-row">
+                  <label>Channel Access</label>
+                  <div className="selection-list">
+                    <label className="selection-item">
+                      <input
+                        type="checkbox"
+                        checked={editCanAccessWeb}
+                        onChange={(e) => setEditCanAccessWeb(e.target.checked)}
+                      />
+                      Web
+                    </label>
+                    <label className="selection-item">
+                      <input
+                        type="checkbox"
+                        checked={editCanAccessMobile}
+                        onChange={(e) => setEditCanAccessMobile(e.target.checked)}
+                      />
+                      Mobile
+                    </label>
+                  </div>
+                </div>
+                <div className="full-row">
                   <label>Active</label>
                   <div className="acc-active-row">
                     <label className="acc-active-switch" htmlFor={`acc-user-active-${userId}`}>
@@ -576,11 +647,14 @@ export default function AccessUsersPanel() {
                     onClick={() =>
                       run(
                         async () => {
+                          const hasAdminRole = editRoleIds.some((roleId) => adminRoleIds.has(roleId));
                           await callApi(apiBase, token, 'PATCH', `/access/users/${userId}`, {
                             email: editEmail,
                             name: editName.trim() || undefined,
                             ...(editPassword.trim() ? { password: editPassword.trim() } : {}),
                             isActive: editActive,
+                            canAccessWeb: hasAdminRole ? true : editCanAccessWeb,
+                            canAccessMobile: hasAdminRole ? true : editCanAccessMobile,
                             operatorCompanyId: editOperatorCompanyId || undefined,
                             warehouseIds: editWarehouseIds,
                           });

@@ -30,6 +30,7 @@ const fallbackMenus: SidebarItem[] = [
       { key: 'md-zones', label: 'Zones', href: '/master-data/zones' },
       { key: 'md-bins', label: 'Bins', href: '/master-data/bins' },
       { key: 'md-uoms', label: 'UOM', href: '/master-data/uoms' },
+      { key: 'md-product-uom-conversions', label: 'Product UOM Conversions', href: '/master-data/product-uom-conversions' },
       { key: 'md-suppliers', label: 'Suppliers', href: '/master-data/suppliers' },
       { key: 'md-products', label: 'Products', href: '/master-data/products' },
     ],
@@ -58,6 +59,7 @@ const fallbackMenus: SidebarItem[] = [
       { key: 'pf-transfers', label: 'Internal Transfers', href: '/process/transfers' },
       { key: 'pf-transformations', label: 'Material Transformations', href: '/process/transformations' },
       { key: 'pf-recipes', label: 'Recipes (BOM)', href: '/process/recipes' },
+      { key: 'pf-activity', label: 'Activity & billing', href: '/process/activity' },
     ],
   },
   {

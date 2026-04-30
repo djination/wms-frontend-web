@@ -40,9 +40,20 @@ export default function CustomerBrowseField({
   return (
     <div>
       <label>{label}</label>
-      <button type="button" className="btn-secondary" onClick={() => setModalOpen(true)} disabled={disabled}>
-        {selectedCustomer ? `${selectedCustomer.code ?? '-'} - ${selectedCustomer.name ?? '-'}` : placeholder}
-      </button>
+      <div className="browse-field">
+        <input
+          readOnly
+          value={selectedCustomer ? `${selectedCustomer.code ?? '-'} - ${selectedCustomer.name ?? '-'}` : placeholder}
+          placeholder="Browse customer"
+          onClick={() => {
+            if (disabled) return;
+            setModalOpen(true);
+          }}
+        />
+        <button type="button" className="browse-trigger" disabled={disabled} aria-label="Browse customer" onClick={() => setModalOpen(true)}>
+          Browse
+        </button>
+      </div>
       {modalOpen ? (
         <div className="modal-backdrop" onClick={() => setModalOpen(false)}>
           <div className="modal-card" onClick={(e) => e.stopPropagation()}>

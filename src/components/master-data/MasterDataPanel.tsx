@@ -14,6 +14,7 @@ import CreateAreaForm from './CreateAreaForm';
 import CreateZoneForm from './CreateZoneForm';
 import CreateBinForm from './CreateBinForm';
 import CreateUomForm from './CreateUomForm';
+import CreateProductUomConversionForm from './CreateProductUomConversionForm';
 
 function WarehouseCustomerTableCell({ row }: { row: SimpleTableRow }): ReactNode {
   const full = String(row.customerLabel ?? '').trim();
@@ -45,6 +46,7 @@ type MasterDataSection =
   | 'operators'
   | 'suppliers'
   | 'products'
+  | 'product-uom-conversions'
   | 'uoms'
   | 'warehouses'
   | 'areas'
@@ -76,6 +78,9 @@ export default function MasterDataPanel({ section }: MasterDataPanelProps) {
   const [success, setSuccess] = useState<string | null>(null);
   const [actionBusy, setActionBusy] = useState<string | null>(null);
   const [inventoryRows, setInventoryRows] = useState<Array<Record<string, string | number | null | undefined>>>([]);
+  const [productUomConversionRows, setProductUomConversionRows] = useState<
+    Array<Record<string, string | number | boolean | null | undefined>>
+  >([]);
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [tableFilterQuery, setTableFilterQuery] = useState('');
   const [tableFilterActive, setTableFilterActive] = useState<'all' | 'active' | 'inactive'>('all');
@@ -127,6 +132,9 @@ export default function MasterDataPanel({ section }: MasterDataPanelProps) {
       if (action === 'list-inventory' && Array.isArray(data)) {
         setInventoryRows(data as Array<Record<string, string | number | null | undefined>>);
       }
+      if (action === 'list-product-uom-conversions' && Array.isArray(data)) {
+        setProductUomConversionRows(data as Array<Record<string, string | number | boolean | null | undefined>>);
+      }
       if (method !== 'GET') {
         setSuccess('Data berhasil disimpan');
         await refreshReferenceData();
@@ -142,6 +150,9 @@ export default function MasterDataPanel({ section }: MasterDataPanelProps) {
     if (section === 'inventory' && token) {
       void run('list-inventory', 'GET', '/master-data/inventory-balances');
     }
+    if (section === 'product-uom-conversions' && token) {
+      void run('list-product-uom-conversions', 'GET', '/master-data/product-uom-conversions');
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [section, token]);
 
@@ -156,6 +167,7 @@ export default function MasterDataPanel({ section }: MasterDataPanelProps) {
     if (section === 'operators') return 'Master Data - Operators/Owners';
     if (section === 'suppliers') return 'Master Data - Suppliers';
     if (section === 'products') return 'Master Data - Products';
+    if (section === 'product-uom-conversions') return 'Master Data - Product UOM Conversions';
     if (section === 'uoms') return 'Master Data - UOM';
     if (section === 'warehouses') return 'Master Data - Warehouses';
     if (section === 'areas') return 'Master Data - Areas';
@@ -342,6 +354,32 @@ export default function MasterDataPanel({ section }: MasterDataPanelProps) {
     });
   }, [inventoryRows]);
 
+  const productUomConversionTableRows = useMemo((): SimpleTableRow[] => {
+    if (!Array.isArray(productUomConversionRows)) return [];
+    return productUomConversionRows.map((raw) => {
+      const row = raw as Record<string, unknown>;
+      const product = (row.product ?? null) as Record<string, unknown> | null;
+      const fromUom = (row.fromUom ?? null) as Record<string, unknown> | null;
+      const toUom = (row.toUom ?? null) as Record<string, unknown> | null;
+      const productCode = product?.sku != null ? String(product.sku) : product?.id != null ? String(product.id) : '-';
+      const productName = product?.name != null ? String(product.name) : '-';
+      const fromLabel = `${fromUom?.code != null ? String(fromUom.code) : '-'}${fromUom?.name != null ? ` - ${String(fromUom.name)}` : ''}`;
+      const toLabel = `${toUom?.code != null ? String(toUom.code) : '-'}${toUom?.name != null ? ` - ${String(toUom.name)}` : ''}`;
+      return {
+        id: String(row.id ?? ''),
+        productId: row.productId != null ? String(row.productId) : '',
+        fromUomId: row.fromUomId != null ? String(row.fromUomId) : '',
+        toUomId: row.toUomId != null ? String(row.toUomId) : '',
+        factor: row.factor != null ? String(row.factor) : '',
+        note: row.note != null ? String(row.note) : '',
+        isActive: Boolean(row.isActive),
+        productLabel: `${productCode} - ${productName}`,
+        fromUomLabel: fromLabel,
+        toUomLabel: toLabel,
+      };
+    });
+  }, [productUomConversionRows]);
+
   const applyRowFilter = (rows: SimpleTableRow[], keys: string[]) => {
     const q = tableFilterQuery.trim().toLowerCase();
     return rows.filter((row) => {
@@ -427,6 +465,10 @@ export default function MasterDataPanel({ section }: MasterDataPanelProps) {
     () => applyRowFilter(inventoryTableRows, ['customerName', 'warehouseCode', 'productName']),
     [inventoryTableRows, tableFilterQuery, tableFilterActive],
   );
+  const filteredProductUomConversionRows = useMemo(
+    () => applyRowFilter(productUomConversionTableRows as SimpleTableRow[], ['productLabel', 'fromUomLabel', 'toUomLabel', 'factor']),
+    [productUomConversionTableRows, tableFilterQuery, tableFilterActive],
+  );
 
   return (
     <>
@@ -511,9 +553,23 @@ export default function MasterDataPanel({ section }: MasterDataPanelProps) {
             busy={busy || actionBusy === 'create-product'}
             customers={customers}
             suppliers={suppliers}
+            uoms={uoms}
             onCancel={() => setShowCreateForm(false)}
             onSubmit={async (payload) => {
               await run('create-product', 'POST', '/master-data/products', payload);
+              setShowCreateForm(false);
+            }}
+          />
+        ) : null}
+
+        {showCreateForm && section === 'product-uom-conversions' ? (
+          <CreateProductUomConversionForm
+            busy={busy || actionBusy === 'create-product-uom-conversion'}
+            products={products}
+            uoms={uoms}
+            onCancel={() => setShowCreateForm(false)}
+            onSubmit={async (payload) => {
+              await run('create-product-uom-conversion', 'POST', '/master-data/product-uom-conversions', payload);
               setShowCreateForm(false);
             }}
           />
@@ -983,10 +1039,12 @@ export default function MasterDataPanel({ section }: MasterDataPanelProps) {
                 submitLabel="Save Product"
                 customers={customers}
                 suppliers={suppliers}
+                uoms={uoms}
                 initialData={{
                   customerId: String(row.customerId ?? ''),
                   sku: String(row.sku ?? ''),
                   name: String(row.name ?? ''),
+                  baseUomId: String(row.baseUomId ?? ''),
                   supplierIds: String(row.supplierIds ?? '')
                     .split(',')
                     .map((v) => v.trim())
@@ -997,6 +1055,7 @@ export default function MasterDataPanel({ section }: MasterDataPanelProps) {
                   await updateMaster(`/master-data/products/${String(row.id ?? '')}`, {
                     sku: payload.sku,
                     name: payload.name,
+                    baseUomId: payload.baseUomId,
                     supplierIds: payload.supplierIds,
                     isActive: Boolean(row.isActive),
                   });
@@ -1050,6 +1109,56 @@ export default function MasterDataPanel({ section }: MasterDataPanelProps) {
             );
           }}
           onDeleteRow={(row) => run('delete-uom', 'DELETE', `/master-data/uoms/${String(row.id ?? '')}`)}
+        />
+      ) : null}
+
+      {section === 'product-uom-conversions' ? (
+        <SimpleTable
+          title="Product UOM Conversions"
+          columns={[
+            { key: 'productLabel', label: 'Product', sortType: 'text' },
+            { key: 'fromUomLabel', label: 'From UOM', sortType: 'text' },
+            { key: 'toUomLabel', label: 'To UOM', sortType: 'text' },
+            { key: 'factor', label: 'Factor', sortType: 'number' },
+            { key: 'note', label: 'Note', sortType: 'text' },
+            {
+              key: 'isActive',
+              label: 'Active',
+              sortType: 'text',
+              renderCell: (row) => (row.isActive ? 'Yes' : 'No'),
+            },
+          ]}
+          rows={filteredProductUomConversionRows}
+          loading={busy || actionBusy === 'list-product-uom-conversions'}
+          renderEditModal={(row, onClose, ctx) => {
+            const readOnly = ctx?.variant === 'view';
+            return (
+              <CreateProductUomConversionForm
+                busy={busy || !!actionBusy}
+                readOnly={readOnly}
+                title={readOnly ? 'Product UOM Conversion' : 'Edit Product UOM Conversion'}
+                submitLabel="Save Conversion"
+                products={products}
+                uoms={uoms}
+                initialData={{
+                  productId: String(row.productId ?? ''),
+                  fromUomId: String(row.fromUomId ?? ''),
+                  toUomId: String(row.toUomId ?? ''),
+                  factor: String(row.factor ?? ''),
+                  note: String(row.note ?? ''),
+                  isActive: Boolean(row.isActive),
+                }}
+                onCancel={onClose}
+                onSubmit={async (payload) => {
+                  await updateMaster(`/master-data/product-uom-conversions/${String(row.id ?? '')}`, payload);
+                  onClose();
+                }}
+              />
+            );
+          }}
+          onDeleteRow={(row) =>
+            run('delete-product-uom-conversion', 'DELETE', `/master-data/product-uom-conversions/${String(row.id ?? '')}`)
+          }
         />
       ) : null}
     </>
