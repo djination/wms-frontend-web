@@ -256,11 +256,14 @@ export default function MasterDataPanel({ section }: MasterDataPanelProps) {
       const operatorLabel = opC
         ? [opC.code, opC.name].filter(Boolean).join(' — ') || String(opC.name ?? opC.code ?? '-')
         : '—';
+      const transitHub = Boolean(w.isTransitImportHub);
       return {
         id: String(w.id ?? ''),
         code: String(w.code ?? ''),
         name: String(w.name ?? ''),
         type: String(w.type ?? ''),
+        isTransitImportHub: transitHub,
+        transitImportLabel: transitHub ? 'Ya' : 'Tidak',
         ownerCompanyId: String(w.ownerCompanyId ?? ''),
         operatorCompanyId: w.operatorCompanyId != null ? String(w.operatorCompanyId) : '',
         ownerLabel,
@@ -435,6 +438,7 @@ export default function MasterDataPanel({ section }: MasterDataPanelProps) {
         'code',
         'name',
         'type',
+        'transitImportLabel',
         'ownerLabel',
         'operatorLabel',
         'customerLabel',
@@ -791,6 +795,7 @@ export default function MasterDataPanel({ section }: MasterDataPanelProps) {
             { key: 'code', label: 'Code', sortType: 'text' },
             { key: 'name', label: 'Name', sortType: 'text' },
             { key: 'type', label: 'Type', sortType: 'text' },
+            { key: 'transitImportLabel', label: 'Transit impor', sortType: 'text' },
             { key: 'ownerLabel', label: 'Pemilik (owner)', sortType: 'text' },
             { key: 'operatorLabel', label: 'Pengelola (operator)', sortType: 'text' },
             {
@@ -817,6 +822,7 @@ export default function MasterDataPanel({ section }: MasterDataPanelProps) {
                   code: String(row.code ?? ''),
                   name: String(row.name ?? ''),
                   type: String(row.type ?? 'SHARED'),
+                  isTransitImportHub: Boolean((row as Record<string, unknown>).isTransitImportHub),
                   ownerCompanyId: String(row.ownerCompanyId ?? ''),
                   operatorCompanyId:
                     row.operatorCompanyId != null && String(row.operatorCompanyId) !== ''

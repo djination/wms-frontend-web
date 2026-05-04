@@ -8,6 +8,8 @@ type Payload = {
   code: string;
   name: string;
   type: string;
+  /** Hub transit impor (customs/dwell di fase berikutnya). */
+  isTransitImportHub: boolean;
   ownerCompanyId: string;
   /** Pengelola (3PL). Saat edit, `null` menghapus operator = operasi self / sama konsep owner. */
   operatorCompanyId?: string | null;
@@ -35,6 +37,7 @@ type Props = {
     code?: string;
     name?: string;
     type?: string;
+    isTransitImportHub?: boolean;
     ownerCompanyId?: string;
     operatorCompanyId?: string | null;
     customerId?: string;
@@ -66,6 +69,7 @@ export default function CreateWarehouseForm({
   const [code, setCode] = useState('WH-JKT-01');
   const [name, setName] = useState('Warehouse Jakarta 01');
   const [type, setType] = useState('SHARED');
+  const [isTransitImportHub, setIsTransitImportHub] = useState(false);
   const [ownerCompanyId, setOwnerCompanyId] = useState('');
   const [operatorCompanyId, setOperatorCompanyId] = useState('');
   const [customerId, setCustomerId] = useState('');
@@ -138,6 +142,7 @@ export default function CreateWarehouseForm({
     setCode(initialData.code ?? '');
     setName(initialData.name ?? '');
     setType(initialData.type ?? 'SHARED');
+    setIsTransitImportHub(Boolean(initialData.isTransitImportHub));
     setOwnerCompanyId(initialData.ownerCompanyId ?? '');
     setOperatorCompanyId(
       initialData.operatorCompanyId != null && String(initialData.operatorCompanyId) !== ''
@@ -159,6 +164,7 @@ export default function CreateWarehouseForm({
     initialData?.code,
     initialData?.name,
     initialData?.type,
+    initialData?.isTransitImportHub,
     initialData?.ownerCompanyId,
     initialData?.operatorCompanyId,
     initialData?.customerId,
@@ -212,6 +218,20 @@ export default function CreateWarehouseForm({
             <option value="DEDICATED">DEDICATED</option>
           </select>
         </div>
+        <label className="checkbox-row full-row" htmlFor="md-wh-transit">
+          <input
+            id="md-wh-transit"
+            type="checkbox"
+            checked={isTransitImportHub}
+            onChange={(e) => !readOnly && setIsTransitImportHub(e.target.checked)}
+            disabled={readOnly}
+            aria-describedby="md-wh-transit-hint"
+          />
+          Gudang transit impor (hub)
+        </label>
+        <small id="md-wh-transit-hint" className="field-hint full-row">
+          Menandai lokasi titik transit (dwell / pelepasan bea cukai di fase berikutnya). Ortogonal terhadap tipe SHARED/DEDICATED.
+        </small>
         <div className="full-row">
           <label htmlFor="md-wh-owner">Pemilik (owner)</label>
           <select
@@ -432,6 +452,7 @@ export default function CreateWarehouseForm({
                 code,
                 name,
                 type,
+                isTransitImportHub,
                 ownerCompanyId,
                 ...(variant === 'edit'
                   ? { operatorCompanyId: operatorCompanyId || null }

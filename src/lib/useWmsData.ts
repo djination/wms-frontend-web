@@ -31,6 +31,8 @@ export type OptionItem = {
   /** Product master: owning customer */
   customerId?: string;
   sku?: string;
+  /** Master warehouse: transit import hub (Fase 2 inbound) */
+  isTransitImportHub?: boolean;
   /** Bin master: warehouse */
   warehouseId?: string;
   /** Bin master: zone */
