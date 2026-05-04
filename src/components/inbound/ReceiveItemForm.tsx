@@ -212,6 +212,17 @@ export default function ReceiveItemForm({
     return filterWarehousesForCustomer(warehouses, asnCustomerId);
   }, [inboundAsnId, warehouses, asnCustomerId]);
 
+  /** ASN dibuat untuk satu warehouse; bila warehouse itu hub transit impor, receipt akan HELD (bea cukai). */
+  const selectedAsnWarehouseIsTransitHub = useMemo(() => {
+    if (!selectedAsn) return false;
+    const row = selectedAsn as Record<string, unknown>;
+    const emb = row.warehouse as Record<string, unknown> | undefined;
+    if (emb && typeof emb.isTransitImportHub === 'boolean') return emb.isTransitImportHub;
+    const wid = row.warehouseId != null ? String(row.warehouseId) : '';
+    const w = warehouses.find((x) => x.id === wid) as Record<string, unknown> | undefined;
+    return Boolean(w?.isTransitImportHub);
+  }, [selectedAsn, warehouses]);
+
   useEffect(() => {
     if (!inboundAsnId) {
       receiveLocationInitForAsnId.current = null;
@@ -370,6 +381,12 @@ export default function ReceiveItemForm({
           <p className="muted" style={{ margin: '4px 0 0', fontSize: 12 }}>
             Daftar warehouse mengikuti customer ASN (sama seperti saat buat ASN).
           </p>
+          {selectedAsnWarehouseIsTransitHub ? (
+            <p className="muted" style={{ margin: '8px 0 0', fontSize: 12 }}>
+              Warehouse ASN ini adalah <strong>transit impor</strong>: setelah receive, baris receipt mendapat status customs{' '}
+              <strong>HELD</strong> hingga pelepasan dicatat dari daftar ASN (modal Receipts).
+            </p>
+          ) : null}
         </div>
         <div>
           <label htmlFor="in-rcv-zone">Zone</label>
