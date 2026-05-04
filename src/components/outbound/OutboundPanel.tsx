@@ -54,6 +54,17 @@ type OutboundEventApiRow = {
   outboundTask?: { id?: string; taskType?: string; status?: string } | null;
 };
 
+type OutboundSerialReservationRow = {
+  id: string;
+  serialNo: string;
+  status: string;
+  reservedAt: string;
+  salesOrder?: { id?: string; orderNo?: string; status?: string };
+  wave?: { id?: string; waveNo?: string } | null;
+  outboundTask?: { id?: string; taskType?: string; status?: string } | null;
+  product?: { id?: string; sku?: string; name?: string };
+};
+
 export default function OutboundPanel({ section }: OutboundPanelProps) {
   const {
     apiBase,
@@ -75,6 +86,10 @@ export default function OutboundPanel({ section }: OutboundPanelProps) {
   const [tasksLoading, setTasksLoading] = useState(false);
   const [events, setEvents] = useState<OutboundEventApiRow[]>([]);
   const [eventsLoading, setEventsLoading] = useState(false);
+  const [eventCodeFilter, setEventCodeFilter] = useState('');
+  const [serialReservations, setSerialReservations] = useState<OutboundSerialReservationRow[]>([]);
+  const [serialReservationsLoading, setSerialReservationsLoading] = useState(false);
+  const [serialReservationStatusFilter, setSerialReservationStatusFilter] = useState('');
 
   const loadTasks = useCallback(async () => {
     if (!token) return;
@@ -93,19 +108,43 @@ export default function OutboundPanel({ section }: OutboundPanelProps) {
     if (!token) return;
     setEventsLoading(true);
     try {
-      const data = await callApi(apiBase, token, 'GET', '/outbound/events');
+      const query = eventCodeFilter.trim() ? `?eventCode=${encodeURIComponent(eventCodeFilter.trim().toUpperCase())}` : '';
+      const data = await callApi(apiBase, token, 'GET', `/outbound/events${query}`);
       setEvents(Array.isArray(data) ? (data as OutboundEventApiRow[]) : []);
     } catch {
       setEvents([]);
     } finally {
       setEventsLoading(false);
     }
-  }, [apiBase, token]);
+  }, [apiBase, token, eventCodeFilter]);
+
+  const loadSerialReservations = useCallback(async () => {
+    if (!token) return;
+    setSerialReservationsLoading(true);
+    try {
+      const query = serialReservationStatusFilter.trim()
+        ? `?status=${encodeURIComponent(serialReservationStatusFilter.trim().toUpperCase())}`
+        : '';
+      const data = await callApi(apiBase, token, 'GET', `/outbound/serial-reservations${query}`);
+      setSerialReservations(Array.isArray(data) ? (data as OutboundSerialReservationRow[]) : []);
+    } catch {
+      setSerialReservations([]);
+    } finally {
+      setSerialReservationsLoading(false);
+    }
+  }, [apiBase, token, serialReservationStatusFilter]);
+
+  useEffect(() => {
+    if (section === 'tasks' && !eventCodeFilter.trim()) {
+      setEventCodeFilter('SERIAL_CONFLICT_DETECTED');
+    }
+  }, [section, eventCodeFilter]);
 
   useEffect(() => {
     if (section === 'tasks') void loadTasks();
     if (section === 'sales-orders' || section === 'tasks') void loadEvents();
-  }, [section, loadTasks, loadEvents]);
+    if (section === 'sales-orders' || section === 'tasks') void loadSerialReservations();
+  }, [section, loadTasks, loadEvents, loadSerialReservations]);
 
   const run = async (action: string, method: 'GET' | 'POST' | 'PATCH' | 'DELETE', path: string, payload?: unknown) => {
     setError(null);
@@ -118,6 +157,7 @@ export default function OutboundPanel({ section }: OutboundPanelProps) {
         await refreshReferenceData();
         if (section === 'tasks' || action.startsWith('task-')) void loadTasks();
         if (section === 'sales-orders' || section === 'tasks') void loadEvents();
+        if (section === 'sales-orders' || section === 'tasks') void loadSerialReservations();
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Request gagal');
@@ -166,6 +206,8 @@ export default function OutboundPanel({ section }: OutboundPanelProps) {
       : section === 'waves'
         ? 'Outbound — Waves'
         : 'Outbound — Tasks';
+  const isConflictEventCode = (eventCode?: string) =>
+    eventCode === 'SERIAL_CONFLICT_DETECTED' || eventCode === 'SERIAL_RESERVATION_PARTIAL';
 
   const salesOrderById = useMemo(() => {
     const map = new Map<string, Record<string, unknown>>();
@@ -196,6 +238,15 @@ export default function OutboundPanel({ section }: OutboundPanelProps) {
             >
               {eventsLoading ? 'Memuat events…' : 'Refresh events'}
             </button>
+            <button
+              type="button"
+              className="btn-secondary"
+              onClick={() => void loadSerialReservations()}
+              disabled={serialReservationsLoading}
+              style={{ marginLeft: 8 }}
+            >
+              {serialReservationsLoading ? 'Memuat reservations…' : 'Refresh reservations'}
+            </button>
           </div>
         ) : null}
 
@@ -203,6 +254,15 @@ export default function OutboundPanel({ section }: OutboundPanelProps) {
           <div className="row">
             <button type="button" className="btn-secondary" onClick={() => void loadEvents()} disabled={eventsLoading}>
               {eventsLoading ? 'Memuat events…' : 'Refresh events'}
+            </button>
+            <button
+              type="button"
+              className="btn-secondary"
+              onClick={() => void loadSerialReservations()}
+              disabled={serialReservationsLoading}
+              style={{ marginLeft: 8 }}
+            >
+              {serialReservationsLoading ? 'Memuat reservations…' : 'Refresh reservations'}
             </button>
           </div>
         ) : null}
@@ -362,25 +422,143 @@ export default function OutboundPanel({ section }: OutboundPanelProps) {
       ) : null}
 
       {(section === 'sales-orders' || section === 'tasks') && events.length > 0 ? (
-        <SimpleTable
-          title="Outbound event logs (API)"
-          columns={[
-            { key: 'createdAt', label: 'Time', sortType: 'date' },
-            { key: 'eventCode', label: 'Event', sortType: 'text' },
-            { key: 'orderNo', label: 'Order', sortType: 'text' },
-            { key: 'taskType', label: 'Task', sortType: 'text' },
-            { key: 'note', label: 'Note', sortType: 'text' },
-          ]}
-          rows={events.map((ev) => ({
-            id: ev.id,
-            createdAt: ev.createdAt,
-            eventCode: ev.eventCode,
-            orderNo: ev.salesOrder?.orderNo ?? '',
-            taskType: ev.outboundTask?.taskType ?? '',
-            note: ev.note ?? '',
-          }))}
-          loading={eventsLoading}
-        />
+        <>
+          <section className="card">
+            <h3 className="form-section-title">Filter event</h3>
+            <div className="row" style={{ marginBottom: 8 }}>
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={() => setEventCodeFilter('SERIAL_CONFLICT_DETECTED')}
+              >
+                Conflict only
+              </button>
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={() => setEventCodeFilter('SERIAL_RESERVATION_PARTIAL')}
+                style={{ marginLeft: 8 }}
+              >
+                Partial reservation only
+              </button>
+              <button type="button" className="btn-secondary" onClick={() => setEventCodeFilter('')} style={{ marginLeft: 8 }}>
+                Reset event filter
+              </button>
+            </div>
+            <div className="form-grid">
+              <div>
+                <label htmlFor="ob-event-code-filter">Event code</label>
+                <select id="ob-event-code-filter" value={eventCodeFilter} onChange={(e) => setEventCodeFilter(e.target.value)}>
+                  <option value="">Semua event</option>
+                  <option value="SERIAL_CONFLICT_DETECTED">SERIAL_CONFLICT_DETECTED</option>
+                  <option value="SERIAL_RESERVATION_PARTIAL">SERIAL_RESERVATION_PARTIAL</option>
+                </select>
+              </div>
+            </div>
+          </section>
+          <SimpleTable
+            title="Outbound event logs (API)"
+            columns={[
+              { key: 'createdAt', label: 'Time', sortType: 'date' },
+              {
+                key: 'eventCode',
+                label: 'Event',
+                sortType: 'text',
+                renderCell: (row) => {
+                  const code = String(row.eventCode ?? '');
+                  return isConflictEventCode(code) ? `!! ${code}` : code;
+                },
+              },
+              { key: 'orderNo', label: 'Order', sortType: 'text' },
+              { key: 'taskType', label: 'Task', sortType: 'text' },
+              { key: 'note', label: 'Note', sortType: 'text' },
+            ]}
+            rows={events.map((ev) => ({
+              id: ev.id,
+              createdAt: ev.createdAt,
+              eventCode: ev.eventCode,
+              orderNo: ev.salesOrder?.orderNo ?? '',
+              taskType: ev.outboundTask?.taskType ?? '',
+              note: ev.note ?? '',
+            }))}
+            loading={eventsLoading}
+          />
+        </>
+      ) : null}
+
+      {(section === 'sales-orders' || section === 'tasks') && serialReservations.length > 0 ? (
+        <>
+          <section className="card">
+            <h3 className="form-section-title">Filter serial reservation</h3>
+            <div className="row" style={{ marginBottom: 8 }}>
+              <button type="button" className="btn-secondary" onClick={() => setSerialReservationStatusFilter('ACTIVE')}>
+                Active only
+              </button>
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={() => setSerialReservationStatusFilter('RELEASED')}
+                style={{ marginLeft: 8 }}
+              >
+                Released only
+              </button>
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={() => setSerialReservationStatusFilter('')}
+                style={{ marginLeft: 8 }}
+              >
+                Reset reservation filter
+              </button>
+            </div>
+            <div className="form-grid">
+              <div>
+                <label htmlFor="ob-serial-reservation-status-filter">Status</label>
+                <select
+                  id="ob-serial-reservation-status-filter"
+                  value={serialReservationStatusFilter}
+                  onChange={(e) => setSerialReservationStatusFilter(e.target.value)}
+                >
+                  <option value="">Semua status</option>
+                  <option value="ACTIVE">ACTIVE</option>
+                  <option value="CONSUMED">CONSUMED</option>
+                  <option value="RELEASED">RELEASED</option>
+                </select>
+              </div>
+            </div>
+          </section>
+          <SimpleTable
+            title="Outbound serial reservations (API)"
+            columns={[
+              { key: 'reservedAt', label: 'Reserved At', sortType: 'date' },
+              {
+                key: 'status',
+                label: 'Status',
+                sortType: 'text',
+                renderCell: (row) => {
+                  const status = String(row.status ?? '');
+                  return status === 'RELEASED' ? `!! ${status}` : status;
+                },
+              },
+              { key: 'serialNo', label: 'Serial', sortType: 'text' },
+              { key: 'orderNo', label: 'Order', sortType: 'text' },
+              { key: 'waveNo', label: 'Wave', sortType: 'text' },
+              { key: 'taskType', label: 'Task', sortType: 'text' },
+              { key: 'product', label: 'Product', sortType: 'text' },
+            ]}
+            rows={serialReservations.map((row) => ({
+              id: row.id,
+              reservedAt: row.reservedAt,
+              status: row.status,
+              serialNo: row.serialNo,
+              orderNo: row.salesOrder?.orderNo ?? '',
+              waveNo: row.wave?.waveNo ?? '',
+              taskType: row.outboundTask?.taskType ?? '',
+              product: row.product?.sku ?? row.product?.name ?? '',
+            }))}
+            loading={serialReservationsLoading}
+          />
+        </>
       ) : null}
     </>
   );
