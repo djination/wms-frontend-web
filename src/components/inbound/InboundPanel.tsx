@@ -1,6 +1,12 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+
+function formatInboundDateTime(iso: string): string {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? iso : d.toLocaleString();
+}
 import { callApi } from '@/src/lib/api';
 import { useWmsData } from '@/src/lib/useWmsData';
 import ToastMessage from '@/src/components/ui/ToastMessage';
@@ -44,7 +50,13 @@ export default function InboundPanel({ section }: InboundPanelProps) {
     setActionBusy(action);
     try {
       await callApi(apiBase, token, method, path, payload);
-      if (method === 'POST') setSuccess('Inbound transaction berhasil');
+      if (method === 'POST') {
+        setSuccess(
+          path.includes('/customs-release')
+            ? 'Pelepasan bea cukai untuk receipt berhasil dicatat'
+            : 'Inbound transaction berhasil',
+        );
+      }
       if (method === 'PATCH') setSuccess('ASN berhasil diperbarui');
       if (method === 'DELETE') {
         setSuccess('ASN berhasil dibatalkan');
@@ -159,9 +171,34 @@ export default function InboundPanel({ section }: InboundPanelProps) {
             );
             const [referenceNo, setReferenceNo] = useState(initialReferenceNo);
             const [expectedAtDate, setExpectedAtDate] = useState(expectedAtDateInput);
+            const [releaseRefByReceiptId, setReleaseRefByReceiptId] = useState<Record<string, string>>({});
             const productsForCustomer = products.filter((p) => !customerId || p.customerId === customerId);
             const suppliersForCustomer = suppliers.filter((s) => !customerId || s.customerId === customerId);
             const editable = status === 'DRAFT' && !readOnly;
+            const receiptRows = useMemo(() => {
+              const raw = Array.isArray(asn?.receipts) ? (asn.receipts as Record<string, unknown>[]) : [];
+              return raw.map((r) => {
+                const prod = (r.product ?? null) as Record<string, unknown> | null;
+                const bin = (r.bin ?? null) as Record<string, unknown> | null;
+                const sku = prod?.sku != null ? String(prod.sku) : '';
+                const pname = prod?.name != null ? String(prod.name) : '';
+                const productLabel = sku || pname ? `${sku}${sku && pname ? ' — ' : ''}${pname}` : String(r.productId ?? '—');
+                const bcode = bin?.code != null ? String(bin.code) : '';
+                const bname = bin?.name != null ? String(bin.name) : '';
+                const binLabel = bcode || bname ? `${bcode}${bcode && bname ? ' — ' : ''}${bname}` : String(r.binId ?? '—');
+                return {
+                  id: String(r.id ?? ''),
+                  receivedAt: r.receivedAt != null ? String(r.receivedAt) : '',
+                  productLabel,
+                  binLabel,
+                  qtyReceived: r.qtyReceived != null ? String(r.qtyReceived) : '',
+                  customsClearanceStatus: String(r.customsClearanceStatus ?? 'NONE'),
+                  customsHoldStartedAt: r.customsHoldStartedAt != null ? String(r.customsHoldStartedAt) : '',
+                  customsReleasedAt: r.customsReleasedAt != null ? String(r.customsReleasedAt) : '',
+                  customsReleaseRef: r.customsReleaseRef != null ? String(r.customsReleaseRef) : '',
+                };
+              });
+            }, [asn]);
 
             return (
               <>
@@ -305,6 +342,93 @@ export default function InboundPanel({ section }: InboundPanelProps) {
                     </div>
                   ))}
                 </div>
+                <h3 className="form-section-title" style={{ marginTop: 16 }}>
+                  Receipts &amp; bea cukai
+                </h3>
+                <p className="muted" style={{ marginBottom: 10 }}>
+                  Receipt di gudang <strong>transit impor</strong> otomatis status <strong>HELD</strong> sampai pelepasan
+                  dicatat. Pengamanan stok keluar (SO / transfer) di fase berikutnya.
+                </p>
+                {receiptRows.length === 0 ? (
+                  <p className="muted">Belum ada receipt untuk ASN ini.</p>
+                ) : (
+                  <div style={{ overflowX: 'auto', marginBottom: 12 }}>
+                    <table className="table">
+                      <thead>
+                        <tr>
+                          <th>Waktu terima</th>
+                          <th>Produk</th>
+                          <th>Bin</th>
+                          <th>Qty</th>
+                          <th>Customs</th>
+                          <th>Mulai hold</th>
+                          <th>Released</th>
+                          <th>Ref release</th>
+                          {!readOnly ? <th>Aksi</th> : null}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {receiptRows.map((rec) => (
+                          <tr key={rec.id}>
+                            <td>{formatInboundDateTime(rec.receivedAt)}</td>
+                            <td>{rec.productLabel}</td>
+                            <td>{rec.binLabel}</td>
+                            <td>{rec.qtyReceived}</td>
+                            <td>{rec.customsClearanceStatus}</td>
+                            <td>{rec.customsHoldStartedAt ? formatInboundDateTime(rec.customsHoldStartedAt) : '—'}</td>
+                            <td>{rec.customsReleasedAt ? formatInboundDateTime(rec.customsReleasedAt) : '—'}</td>
+                            <td>{rec.customsReleaseRef || '—'}</td>
+                            {!readOnly ? (
+                              <td>
+                                {rec.customsClearanceStatus === 'HELD' ? (
+                                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center' }}>
+                                    <input
+                                      type="text"
+                                      placeholder="Ref pelepasan (opsional)"
+                                      value={releaseRefByReceiptId[rec.id] ?? ''}
+                                      onChange={(e) =>
+                                        setReleaseRefByReceiptId((prev) => ({ ...prev, [rec.id]: e.target.value }))
+                                      }
+                                      style={{ minWidth: 140, maxWidth: 200 }}
+                                      aria-label={`Ref pelepasan receipt ${rec.id}`}
+                                    />
+                                    <button
+                                      type="button"
+                                      className="btn-secondary"
+                                      disabled={busy || actionBusy === `release-customs-${rec.id}`}
+                                      onClick={() =>
+                                        (async () => {
+                                          const ref = (releaseRefByReceiptId[rec.id] ?? '').trim();
+                                          const ok = await run(
+                                            `release-customs-${rec.id}`,
+                                            'POST',
+                                            `/inbound/receipts/${rec.id}/customs-release`,
+                                            ref ? { releaseRef: ref } : {},
+                                          );
+                                          if (ok) {
+                                            setReleaseRefByReceiptId((prev) => {
+                                              const next = { ...prev };
+                                              delete next[rec.id];
+                                              return next;
+                                            });
+                                          }
+                                        })()
+                                      }
+                                    >
+                                      Release
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <span className="muted">—</span>
+                                )}
+                              </td>
+                            ) : null}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
                 {editable ? (
                   <div className="modal-form-actions">
                     <button

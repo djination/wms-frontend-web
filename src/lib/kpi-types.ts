@@ -47,4 +47,14 @@ export type KpiSummary = {
     transformationInputQtyConsumedInPeriod: string;
     kitchenYieldRatioOutputOverInput: number | null;
   };
+  transitImportCustoms: {
+    openHeldReceiptCount: number;
+    openHeldQtyBase: string;
+    avgOpenDwellHours: number | null;
+    openDwellStatsBasis: 'none' | 'all' | 'sample_first_5000';
+    clearedInPeriodReceiptCount: number;
+    clearedInPeriodQtyBase: string;
+    avgClearedDwellHoursHoldToRelease: number | null;
+    clearedDwellStatsBasis: 'none' | 'all' | 'sample_first_10000';
+  };
 };

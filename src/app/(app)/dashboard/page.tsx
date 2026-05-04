@@ -10,6 +10,11 @@ function formatPct(value: number | null | undefined, digits = 1) {
   return `${(value * 100).toFixed(digits)}%`;
 }
 
+function formatHours(value: number | null | undefined, digits = 2) {
+  if (value === null || value === undefined || Number.isNaN(value)) return '—';
+  return `${value.toFixed(digits)} jam`;
+}
+
 function defaultDateRange() {
   const to = new Date();
   const from = new Date(to.getTime() - 30 * 24 * 60 * 60 * 1000);
@@ -145,6 +150,50 @@ export default function DashboardPage() {
 
       {kpi ? (
         <>
+          <section className="card">
+            <h3>Transit impor &amp; bea cukai</h3>
+            <p className="muted">
+              Gudang transit saja. <strong>Open HELD</strong> = snapshot; <strong>Cleared</strong> = receipt yang
+              <code>customsReleasedAt</code> jatuh di periode filter.
+            </p>
+            <div className="kpi-grid">
+              <div className="kpi">
+                <div className="kpi-label">Receipt HELD (open)</div>
+                <div className="kpi-value">{kpi.transitImportCustoms.openHeldReceiptCount}</div>
+              </div>
+              <div className="kpi">
+                <div className="kpi-label">Qty basis tertahan (HELD)</div>
+                <div className="kpi-value" style={{ fontSize: 16 }}>
+                  {kpi.transitImportCustoms.openHeldQtyBase}
+                </div>
+              </div>
+              <div className="kpi">
+                <div className="kpi-label">Rata dwell open (estimasi)</div>
+                <div className="kpi-value">{formatHours(kpi.transitImportCustoms.avgOpenDwellHours)}</div>
+                <div className="muted" style={{ marginTop: 4, fontSize: 11 }}>
+                  Basis: {kpi.transitImportCustoms.openDwellStatsBasis}
+                </div>
+              </div>
+              <div className="kpi">
+                <div className="kpi-label">Release di periode (CLEARED)</div>
+                <div className="kpi-value">{kpi.transitImportCustoms.clearedInPeriodReceiptCount}</div>
+              </div>
+              <div className="kpi">
+                <div className="kpi-label">Qty basis released (periode)</div>
+                <div className="kpi-value" style={{ fontSize: 16 }}>
+                  {kpi.transitImportCustoms.clearedInPeriodQtyBase}
+                </div>
+              </div>
+              <div className="kpi">
+                <div className="kpi-label">Rata dwell hold → release (periode)</div>
+                <div className="kpi-value">{formatHours(kpi.transitImportCustoms.avgClearedDwellHoursHoldToRelease)}</div>
+                <div className="muted" style={{ marginTop: 4, fontSize: 11 }}>
+                  Basis: {kpi.transitImportCustoms.clearedDwellStatsBasis}
+                </div>
+              </div>
+            </div>
+          </section>
+
           <section className="card">
             <h3>Inbound</h3>
             <div className="kpi-grid">
