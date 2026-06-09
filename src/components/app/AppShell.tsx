@@ -43,6 +43,11 @@ const fallbackMenus: SidebarItem[] = [
       { key: 'in-asn', label: 'ASN', href: '/inbound/asn' },
       { key: 'in-receiving', label: 'Receiving', href: '/inbound/receiving' },
       { key: 'in-history', label: 'History', href: '/inbound/history' },
+      {
+        key: 'in-manifest',
+        label: 'Manifest review',
+        href: '/inbound/manifest-review',
+      },
     ],
   },
   {
@@ -72,6 +77,18 @@ const fallbackMenus: SidebarItem[] = [
       { key: 'ob-waves', label: 'Waves', href: '/outbound/waves' },
       { key: 'ob-tasks', label: 'Tasks', href: '/outbound/tasks' },
       { key: 'ob-events', label: 'Events', href: '/outbound/sales-orders' },
+    ],
+  },
+  {
+    key: 'integration',
+    label: 'Integrasi data',
+    href: '/integration/data-sync',
+    children: [
+      {
+        key: 'int-data-sync',
+        label: 'Sinkron antar database',
+        href: '/integration/data-sync',
+      },
     ],
   },
   {

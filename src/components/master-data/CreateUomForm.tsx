@@ -30,7 +30,7 @@ export default function CreateUomForm({
     setCode(initialData.code ?? '');
     setName(initialData.name ?? '');
     setDescription(initialData.description ?? '');
-  }, [initialData?.code, initialData?.name, initialData?.description]);
+  }, [initialData]);
 
   return (
     <>

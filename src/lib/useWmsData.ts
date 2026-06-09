@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, createElement, useContext, useEffect, useMemo, useState } from 'react';
+import { createContext, createElement, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { callApi } from '@/src/lib/api';
 import { getStoredApiBase, getStoredToken } from '@/src/lib/session';
 
@@ -121,7 +121,7 @@ export function WmsDataProvider({ children }: { children: React.ReactNode }) {
   const [waves, setWaves] = useState<OutboundWaveRow[]>([]);
   const [busy, setBusy] = useState(false);
 
-  const refreshReferenceData = async () => {
+  const refreshReferenceData = useCallback(async () => {
     const currentToken = getStoredToken();
     if (!currentToken) return;
     const currentApiBase = getStoredApiBase();
@@ -214,7 +214,7 @@ export function WmsDataProvider({ children }: { children: React.ReactNode }) {
     } finally {
       setBusy(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     setApiBase(getStoredApiBase());
@@ -224,8 +224,7 @@ export function WmsDataProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!token) return;
     void refreshReferenceData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token]);
+  }, [token, refreshReferenceData]);
 
   const value = useMemo(
     () => ({
@@ -262,6 +261,7 @@ export function WmsDataProvider({ children }: { children: React.ReactNode }) {
       salesOrders,
       waves,
       busy,
+      refreshReferenceData,
     ],
   );
 

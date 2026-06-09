@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { callApi } from '@/src/lib/api';
 import { useWmsData } from '@/src/lib/useWmsData';
 import ToastMessage from '@/src/components/ui/ToastMessage';
@@ -39,6 +39,33 @@ function WarehouseCustomerTableCell({ row }: { row: SimpleTableRow }): ReactNode
       {display}
     </span>
   );
+}
+
+/** Tampilan setara: inversi konversi aktif (from → base). Bukan agregasi UOM per receipt. */
+function inventoryEquivFromBase(qtyBase: number, baseUomId: string, conversions: unknown): string {
+  if (!Number.isFinite(qtyBase) || !baseUomId) return '';
+  const list = Array.isArray(conversions) ? conversions : [];
+  const parts: string[] = [];
+  for (const raw of list) {
+    const c = raw as Record<string, unknown>;
+    if (c.isActive === false) continue;
+    const toId = c.toUomId != null ? String(c.toUomId) : '';
+    if (toId !== baseUomId) continue;
+    const fromId = c.fromUomId != null ? String(c.fromUomId) : '';
+    if (!fromId || fromId === baseUomId) continue;
+    const factor = Number(c.factor ?? 0);
+    if (!(factor > 0)) continue;
+    const q = qtyBase / factor;
+    if (!Number.isFinite(q)) continue;
+    const fromUom = (c.fromUom ?? null) as Record<string, unknown> | null;
+    const code = fromUom?.code != null ? String(fromUom.code) : fromId;
+    const qStr =
+      Math.abs(q - Math.round(q)) < 1e-9
+        ? String(Math.round(q))
+        : String(Math.round(q * 1_000_000) / 1_000_000).replace(/(\.\d*?)0+$/, '$1').replace(/\.$/, '');
+    parts.push(`${qStr} ${code}`);
+  }
+  return parts.join(' · ');
 }
 
 type MasterDataSection =
@@ -189,12 +216,20 @@ export default function MasterDataPanel({ section }: MasterDataPanelProps) {
             : c?.code
               ? String(c.code)
               : '-';
+      const baseUom = raw.baseUom as { id?: string } | null | undefined;
+      const baseUomId =
+        raw.baseUomId != null
+          ? String(raw.baseUomId)
+          : baseUom?.id != null
+            ? String(baseUom.id)
+            : '';
       return {
         id: raw.id != null ? String(raw.id) : '',
         sku: raw.sku != null ? String(raw.sku) : '',
         name: raw.name != null ? String(raw.name) : '',
         customerId: raw.customerId != null ? String(raw.customerId) : '',
         customerLabel,
+        baseUomId,
         supplierIds: Array.isArray(raw.supplierIds)
           ? (raw.supplierIds as unknown[]).map((v) => String(v)).join(',')
           : '',
@@ -332,8 +367,23 @@ export default function MasterDataPanel({ section }: MasterDataPanelProps) {
       const row = raw as Record<string, unknown>;
       const customer = row.customer as Record<string, unknown> | undefined;
       const warehouse = row.warehouse as Record<string, unknown> | undefined;
+      const bin = row.bin as Record<string, unknown> | undefined;
       const product = row.product as Record<string, unknown> | undefined;
+      const baseUom = (product?.baseUom ?? null) as Record<string, unknown> | null;
+      const baseUomId = product?.baseUomId != null ? String(product.baseUomId) : '';
+      const baseUomCode = baseUom?.code != null ? String(baseUom.code) : '';
+      const baseUomName = baseUom?.name != null ? String(baseUom.name) : '';
+      const baseUomLabel =
+        baseUomCode && baseUomName
+          ? `${baseUomCode} — ${baseUomName}`
+          : baseUomCode || baseUomName || (baseUomId ? baseUomId : '—');
+      const sku = product?.sku != null ? String(product.sku) : '';
+      const pname = product?.name != null ? String(product.name) : '';
+      const productName = sku && pname ? `${sku} — ${pname}` : pname || sku || (row.productId != null ? String(row.productId) : '-');
+      const qtyNum = Number(row.qtyOnHand ?? 0);
+      const equiv = inventoryEquivFromBase(qtyNum, baseUomId, product?.uomConversions);
       return {
+        id: row.id != null ? String(row.id) : '',
         customerName:
           customer?.name != null
             ? String(customer.name)
@@ -346,13 +396,12 @@ export default function MasterDataPanel({ section }: MasterDataPanelProps) {
             : row.warehouseId != null
               ? String(row.warehouseId)
               : '-',
-        productName:
-          product?.name != null
-            ? String(product.name)
-            : row.productId != null
-              ? String(row.productId)
-              : '-',
-        qtyOnHand: row.qtyOnHand != null ? String(row.qtyOnHand) : '0',
+        binCode: bin?.code != null ? String(bin.code) : '-',
+        productName,
+        baseUomLabel,
+        baseUomCode: baseUomCode || baseUomId || '—',
+        qtyOnHand: Number.isFinite(qtyNum) ? String(qtyNum) : String(row.qtyOnHand ?? '0'),
+        qtyEquivSummary: equiv ? `≈ ${equiv}` : '—',
       };
     });
   }, [inventoryRows]);
@@ -383,26 +432,20 @@ export default function MasterDataPanel({ section }: MasterDataPanelProps) {
     });
   }, [productUomConversionRows]);
 
-  const applyRowFilter = (rows: SimpleTableRow[], keys: string[]) => {
-    const q = tableFilterQuery.trim().toLowerCase();
-    return rows.filter((row) => {
-      if (tableFilterActive !== 'all') {
-        const activeValue = Boolean(row.isActive);
-        if (tableFilterActive === 'active' && !activeValue) return false;
-        if (tableFilterActive === 'inactive' && activeValue) return false;
-      }
-      if (!q) return true;
-      return keys.some((key) => String(row[key] ?? '').toLowerCase().includes(q));
-    });
-  };
-
-  const filteredCustomerRows = useMemo(
-    () => applyRowFilter(customers as unknown as SimpleTableRow[], ['code', 'name', 'type', 'phone', 'picCountLabel']),
-    [customers, tableFilterQuery, tableFilterActive],
-  );
-  const filteredOperatorRows = useMemo(
-    () => applyRowFilter(operators as unknown as SimpleTableRow[], ['code', 'name', 'phone', 'picCountLabel']),
-    [operators, tableFilterQuery, tableFilterActive],
+  const applyRowFilter = useCallback(
+    (rows: SimpleTableRow[], keys: string[]) => {
+      const q = tableFilterQuery.trim().toLowerCase();
+      return rows.filter((row) => {
+        if (tableFilterActive !== 'all' && row.isActive !== undefined) {
+          const activeValue = Boolean(row.isActive);
+          if (tableFilterActive === 'active' && !activeValue) return false;
+          if (tableFilterActive === 'inactive' && activeValue) return false;
+        }
+        if (!q) return true;
+        return keys.some((key) => String(row[key] ?? '').toLowerCase().includes(q));
+      });
+    },
+    [tableFilterQuery, tableFilterActive],
   );
   const customerTableRows = useMemo(
     () =>
@@ -422,15 +465,15 @@ export default function MasterDataPanel({ section }: MasterDataPanelProps) {
   );
   const filteredCustomerTableRows = useMemo(
     () => applyRowFilter(customerTableRows as unknown as SimpleTableRow[], ['code', 'name', 'type', 'phone', 'picCountLabel']),
-    [customerTableRows, tableFilterQuery, tableFilterActive],
+    [customerTableRows, applyRowFilter],
   );
   const filteredOperatorTableRows = useMemo(
     () => applyRowFilter(operatorTableRows as unknown as SimpleTableRow[], ['code', 'name', 'phone', 'picCountLabel']),
-    [operatorTableRows, tableFilterQuery, tableFilterActive],
+    [operatorTableRows, applyRowFilter],
   );
   const filteredSupplierRows = useMemo(
     () => applyRowFilter(suppliers as unknown as SimpleTableRow[], ['code', 'name', 'phone']),
-    [suppliers, tableFilterQuery, tableFilterActive],
+    [suppliers, applyRowFilter],
   );
   const filteredWarehouseRows = useMemo(
     () =>
@@ -443,35 +486,44 @@ export default function MasterDataPanel({ section }: MasterDataPanelProps) {
         'operatorLabel',
         'customerLabel',
       ]),
-    [warehouseTableRows, tableFilterQuery, tableFilterActive],
+    [warehouseTableRows, applyRowFilter],
   );
   const filteredProductRows = useMemo(
     () => applyRowFilter(productTableRows, ['sku', 'name', 'customerLabel', 'supplierLabel']),
-    [productTableRows, tableFilterQuery, tableFilterActive],
+    [productTableRows, applyRowFilter],
   );
   const filteredUomRows = useMemo(
     () => applyRowFilter(uoms as unknown as SimpleTableRow[], ['code', 'name', 'description']),
-    [uoms, tableFilterQuery, tableFilterActive],
+    [uoms, applyRowFilter],
   );
   const filteredAreaRows = useMemo(
     () => applyRowFilter(areaTableRows, ['code', 'name', 'warehouseLabel']),
-    [areaTableRows, tableFilterQuery, tableFilterActive],
+    [areaTableRows, applyRowFilter],
   );
   const filteredZoneRows = useMemo(
     () => applyRowFilter(zoneTableRows, ['code', 'name', 'warehouseLabel', 'areaLabel']),
-    [zoneTableRows, tableFilterQuery, tableFilterActive],
+    [zoneTableRows, applyRowFilter],
   );
   const filteredBinRows = useMemo(
     () => applyRowFilter(binTableRows, ['code', 'name', 'warehouseLabel', 'zoneLabel']),
-    [binTableRows, tableFilterQuery, tableFilterActive],
+    [binTableRows, applyRowFilter],
   );
   const filteredInventoryRows = useMemo(
-    () => applyRowFilter(inventoryTableRows, ['customerName', 'warehouseCode', 'productName']),
-    [inventoryTableRows, tableFilterQuery, tableFilterActive],
+    () =>
+      applyRowFilter(inventoryTableRows, [
+        'customerName',
+        'warehouseCode',
+        'binCode',
+        'productName',
+        'baseUomLabel',
+        'qtyOnHand',
+        'qtyEquivSummary',
+      ]),
+    [inventoryTableRows, applyRowFilter],
   );
   const filteredProductUomConversionRows = useMemo(
     () => applyRowFilter(productUomConversionTableRows as SimpleTableRow[], ['productLabel', 'fromUomLabel', 'toUomLabel', 'factor']),
-    [productUomConversionTableRows, tableFilterQuery, tableFilterActive],
+    [productUomConversionTableRows, applyRowFilter],
   );
 
   return (
@@ -774,7 +826,8 @@ export default function MasterDataPanel({ section }: MasterDataPanelProps) {
                 }}
                 onCancel={onClose}
                 onSubmit={async (payload) => {
-                  const { customerId: _customerId, ...patch } = payload;
+                  const { customerId, ...patch } = payload;
+                  void customerId;
                   await updateMaster(`/master-data/suppliers/${String(row.id ?? '')}`, {
                     ...patch,
                     isActive: Boolean(row.isActive),
@@ -1010,11 +1063,74 @@ export default function MasterDataPanel({ section }: MasterDataPanelProps) {
           columns={[
             { key: 'customerName', label: 'Customer', sortType: 'text' },
             { key: 'warehouseCode', label: 'Warehouse', sortType: 'text' },
+            { key: 'binCode', label: 'Bin', sortType: 'text' },
             { key: 'productName', label: 'Product', sortType: 'text' },
-            { key: 'qtyOnHand', label: 'Qty On Hand', sortType: 'number' },
+            { key: 'baseUomLabel', label: 'Base UOM', sortType: 'text' },
+            {
+              key: 'qtyOnHand',
+              label: 'Qty (base)',
+              sortType: 'number',
+              renderCell: (r) => {
+                const code = String(r.baseUomCode ?? '').trim();
+                const qty = String(r.qtyOnHand ?? '0').trim();
+                return code && code !== '—' ? `${qty} ${code}` : qty;
+              },
+            },
+            {
+              key: 'qtyEquivSummary',
+              label: '≈ Setara (UOM lain)',
+              sortType: 'text',
+              renderCell: (r) => String(r.qtyEquivSummary ?? '—'),
+            },
           ]}
           rows={filteredInventoryRows}
           loading={busy || actionBusy === 'list-inventory'}
+          renderEditModal={(row) => (
+            <div className="table-modal-generic-edit">
+              <p className="muted" style={{ marginBottom: 12 }}>
+                <strong>Qty (base)</strong> adalah saldo di sistem (selalu dalam base UOM produk). Kolom setara
+                menghitung perkiraan di UOM lain dari <em>konversi aktif</em> (bukan menjumlahkan ulang input
+                penerimaan per jerigen/pallet).
+              </p>
+              <div className="form-grid" style={{ marginTop: 4 }}>
+                <div>
+                  <label>Customer</label>
+                  <input readOnly value={String(row.customerName ?? '')} />
+                </div>
+                <div>
+                  <label>Warehouse</label>
+                  <input readOnly value={String(row.warehouseCode ?? '')} />
+                </div>
+                <div>
+                  <label>Bin</label>
+                  <input readOnly value={String(row.binCode ?? '')} />
+                </div>
+                <div className="full-row">
+                  <label>Product</label>
+                  <input readOnly value={String(row.productName ?? '')} />
+                </div>
+                <div>
+                  <label>Base UOM</label>
+                  <input readOnly value={String(row.baseUomLabel ?? '')} />
+                </div>
+                <div>
+                  <label>Qty (base)</label>
+                  <input
+                    readOnly
+                    value={
+                      String(row.baseUomCode ?? '').trim() && String(row.baseUomCode) !== '—'
+                        ? `${String(row.qtyOnHand ?? '')} ${String(row.baseUomCode)}`
+                        : String(row.qtyOnHand ?? '')
+                    }
+                  />
+                </div>
+                <div className="full-row">
+                  <label>≈ Setara (UOM lain)</label>
+                  <input readOnly value={String(row.qtyEquivSummary ?? '—')} />
+                </div>
+              </div>
+            </div>
+          )}
         />
       ) : null}
 

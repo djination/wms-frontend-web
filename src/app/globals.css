@@ -1266,3 +1266,262 @@ pre {
     max-width: none;
   }
 }
+
+/* --- Data sync wizard (integration middleware UI) --- */
+.data-sync-wizard {
+  max-width: 920px;
+}
+
+.data-sync-hero h1 {
+  margin: 0 0 8px;
+  font-size: 1.35rem;
+  font-weight: 700;
+  color: #eef4fc;
+  letter-spacing: -0.02em;
+}
+
+.data-sync-lead {
+  margin: 0 0 20px;
+  font-size: 14px;
+  line-height: 1.55;
+  color: #9fb0c5;
+}
+
+.data-sync-lead strong {
+  color: #c7d2e0;
+}
+
+.data-sync-service {
+  background: #18202b;
+  border: 1px solid #2d3a4d;
+  border-radius: 12px;
+  padding: 16px 18px;
+  margin-bottom: 20px;
+}
+
+.data-sync-service label {
+  margin-top: 0;
+}
+
+.data-sync-hint {
+  font-size: 12px;
+  margin: 6px 0 12px;
+}
+
+.data-sync-hint code {
+  font-size: 11px;
+  color: #a5b4fc;
+}
+
+.data-sync-steps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.data-sync-step-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 8px 8px 0;
+  padding: 8px 14px;
+  border-radius: 999px;
+  border: 1px solid #314055;
+  background: #131c28;
+  color: #9fb0c5;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.data-sync-step-pill:hover {
+  border-color: #3b82f6;
+  color: #dbeafe;
+}
+
+.data-sync-step-pill.active {
+  border-color: #3b82f6;
+  background: rgba(59, 130, 246, 0.2);
+  color: #eef4fc;
+  font-weight: 600;
+}
+
+.data-sync-step-pill.done:not(.active) {
+  border-color: #0f766e;
+  color: #99f6e4;
+}
+
+.data-sync-step-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #0f1419;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.data-sync-step-pill.active .data-sync-step-num {
+  background: #1d4ed8;
+  color: #fff;
+}
+
+.data-sync-step-hint {
+  font-size: 13px;
+  margin: 0 0 16px;
+}
+
+.data-sync-card {
+  background: #18202b;
+  border: 1px solid #2d3a4d;
+  border-radius: 12px;
+  padding: 18px 20px 8px;
+  margin-bottom: 20px;
+}
+
+.data-sync-card .form-section-title {
+  margin-top: 0;
+}
+
+.data-sync-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 12px 0 16px;
+}
+
+.data-sync-actions button {
+  margin-bottom: 0;
+}
+
+.data-sync-mapping-table-wrap {
+  overflow-x: auto;
+  margin: 12px 0 16px;
+  border: 1px solid #2a3648;
+  border-radius: 10px;
+}
+
+.data-sync-mapping-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.data-sync-mapping-table th,
+.data-sync-mapping-table td {
+  padding: 10px 12px;
+  text-align: left;
+  border-bottom: 1px solid #243041;
+}
+
+.data-sync-mapping-table th {
+  background: #131c28;
+  color: #9fb0c5;
+  font-weight: 600;
+}
+
+.data-sync-mapping-table tr:last-child td {
+  border-bottom: none;
+}
+
+.data-sync-mapping-table select {
+  margin-bottom: 0;
+}
+
+.data-sync-status-panel {
+  margin-top: 16px;
+  padding: 14px 16px;
+  background: #0f1419;
+  border: 1px solid #2a3648;
+  border-radius: 10px;
+}
+
+.data-sync-status--processing {
+  color: #fde68a;
+}
+
+.data-sync-status--completed {
+  color: #6ee7b7;
+}
+
+.data-sync-status--failed {
+  color: #fda4af;
+}
+
+.data-sync-oracle-callout {
+  grid-column: 1 / -1;
+  padding: 12px 14px;
+  margin: 0 0 8px;
+  border-radius: 10px;
+  border: 1px solid rgba(217, 119, 6, 0.45);
+  background: rgba(217, 119, 6, 0.12);
+  font-size: 13px;
+  line-height: 1.5;
+  color: #fde68a;
+}
+
+.data-sync-oracle-callout strong {
+  display: block;
+  margin-bottom: 6px;
+  color: #fef3c7;
+}
+
+.data-sync-oracle-callout p {
+  margin: 0 0 8px;
+}
+
+.data-sync-oracle-callout code {
+  font-size: 12px;
+  color: #fcd34d;
+}
+
+.data-sync-oracle-callout-foot {
+  margin-bottom: 0 !important;
+}
+
+.data-sync-target-choice {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin: 12px 0 16px;
+}
+
+.data-sync-radio {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  font-size: 14px;
+  color: #c7d2e0;
+}
+
+.data-sync-radio input {
+  width: auto;
+  margin: 0;
+}
+
+.data-sync-pair-card {
+  border: 1px solid #2a3648;
+  border-radius: 10px;
+  padding: 14px 16px;
+  margin-bottom: 14px;
+  background: #131c28;
+}
+
+.data-sync-pair-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+button.btn-small {
+  padding: 4px 10px;
+  font-size: 12px;
+  margin-bottom: 0;
+}

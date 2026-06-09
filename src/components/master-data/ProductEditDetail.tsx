@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import type { SimpleTableRow } from '@/src/components/ui/SimpleTable';
 
 type Props = {
@@ -50,6 +50,7 @@ export default function ProductEditDetail({ row, onClose, busy, onUpdate }: Prop
           Active
         </label>
       </div>
+      {localError ? <p className="error">{localError}</p> : null}
       <div className="row product-edit-actions">
         <button type="button" onClick={() => void save()} disabled={busy || !name.trim() || !id}>
           Save changes

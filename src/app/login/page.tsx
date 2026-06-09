@@ -7,7 +7,7 @@ import { defaultApiBase, getStoredToken, setStoredApiBase, setStoredToken } from
 
 export default function LoginPage() {
   const router = useRouter();
-  const [apiBase, setApiBase] = useState(defaultApiBase);
+  const [apiBase] = useState(defaultApiBase);
   const [email, setEmail] = useState('admin@wms.local');
   const [password, setPassword] = useState('password123');
   const [error, setError] = useState<string | null>(null);

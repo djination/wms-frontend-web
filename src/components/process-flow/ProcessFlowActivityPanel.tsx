@@ -314,7 +314,7 @@ export default function ProcessFlowActivityPanel() {
                           <div key={rec.id} style={{ marginBottom: 6 }}>
                             <div>ASN: {rec.inboundAsnNo ?? '-'}</div>
                             <div className="muted">
-                              Qty: {rec.qtyReceived} | Lot: {rec.lotNo ?? '-'} | Batch: {rec.batchNo ?? '-'}
+                              Qty (base): {rec.qtyReceived} | Lot: {rec.lotNo ?? '-'} | Batch: {rec.batchNo ?? '-'}
                             </div>
                             <div className="muted">Serial: {rec.serialNos?.join(', ') || '-'}</div>
                           </div>

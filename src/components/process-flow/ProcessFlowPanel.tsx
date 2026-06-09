@@ -11,6 +11,18 @@ import { OptionItem, useWmsData } from '@/src/lib/useWmsData';
 
 export type ProcessFlowSection = 'transfers' | 'transformations' | 'recipes';
 
+function formatTransferBinOptionLabel(b: OptionItem): string {
+  const row = b as Record<string, unknown>;
+  const code = row.code != null ? String(row.code) : String(b.id ?? '');
+  const name = row.name != null ? String(row.name) : '';
+  const z = row.zone as Record<string, unknown> | undefined;
+  const zc = z?.code != null ? String(z.code) : '';
+  const zn = z?.name != null ? String(z.name) : '';
+  const zone = zc && zn ? `${zc} — ${zn}` : zc || zn;
+  const label = `${code}${name ? ` - ${name}` : ''}`;
+  return zone ? `${label} [${zone}]` : label;
+}
+
 type TransferRow = {
   id: string;
   transferNo: string;
@@ -81,6 +93,8 @@ export default function ProcessFlowPanel({ section }: Props) {
   const [toWarehouseId, setToWarehouseId] = useState('');
   const [transferLine, setTransferLine] = useState({ productId: '', sourceBinId: '', destinationBinId: '', qty: '1', uomId: '' });
   const [completeTransferId, setCompleteTransferId] = useState('');
+  /** When true, `toWarehouseId` follows `fromWarehouseId` for bin/zona moves within one warehouse. */
+  const [sameWarehouseBinMove, setSameWarehouseBinMove] = useState(false);
 
   const [processNo, setProcessNo] = useState('');
   const [processCustomerId, setProcessCustomerId] = useState('');
@@ -92,21 +106,32 @@ export default function ProcessFlowPanel({ section }: Props) {
   const [outputSerialNosText, setOutputSerialNosText] = useState('');
   const [outputUomId, setOutputUomId] = useState('');
   const [qtyOutput, setQtyOutput] = useState('1');
-  const [inputLine, setInputLine] = useState({
-    productId: '',
-    binId: '',
-    lotNo: '',
-    batchNo: '',
-    serialNosText: '',
-    uomId: '',
-    qtyConsumed: '1',
-  });
+  const [inputLines, setInputLines] = useState<
+    Array<{
+      productId: string;
+      binId: string;
+      lotNo: string;
+      batchNo: string;
+      serialNosText: string;
+      uomId: string;
+      qtyConsumed: string;
+    }>
+  >([
+    {
+      productId: '',
+      binId: '',
+      lotNo: '',
+      batchNo: '',
+      serialNosText: '',
+      uomId: '',
+      qtyConsumed: '1',
+    },
+  ]);
   const [completeProcessId, setCompleteProcessId] = useState('');
   const [recipeCode, setRecipeCode] = useState('');
   const [recipeCustomerId, setRecipeCustomerId] = useState('');
   const [recipeOutputProductId, setRecipeOutputProductId] = useState('');
   const [recipeBaseOutputQty, setRecipeBaseOutputQty] = useState('500');
-  const [recipeLine, setRecipeLine] = useState({ productId: '', qtyPerBase: '100' });
   const [recipeLines, setRecipeLines] = useState<Array<{ productId: string; qtyPerBase: string }>>([
     { productId: '', qtyPerBase: '100' },
   ]);
@@ -148,6 +173,19 @@ export default function ProcessFlowPanel({ section }: Props) {
     }
     return map;
   }, [bins]);
+
+  const destinationBinsForTransfer = useMemo(() => {
+    const list = binsByWarehouse.get(toWarehouseId) ?? [];
+    if (fromWarehouseId === toWarehouseId && transferLine.sourceBinId) {
+      return list.filter((b) => b.id !== transferLine.sourceBinId);
+    }
+    return list;
+  }, [binsByWarehouse, toWarehouseId, fromWarehouseId, transferLine.sourceBinId]);
+
+  useEffect(() => {
+    if (!sameWarehouseBinMove) return;
+    if (fromWarehouseId) setToWarehouseId(fromWarehouseId);
+  }, [sameWarehouseBinMove, fromWarehouseId]);
 
   const transferPrefix = useMemo(() => getTransferNoPrefix(), []);
   const transferToday = useMemo(() => new Date().toISOString().slice(0, 10), []);
@@ -205,13 +243,28 @@ export default function ProcessFlowPanel({ section }: Props) {
     [products, processCustomerId],
   );
   const selectedRecipe = useMemo(() => recipes.find((r) => r.id === fromRecipeId), [recipes, fromRecipeId]);
+
+  /** Bin IDs that have on-hand stock for a product in the selected recipe warehouse + recipe customer */
+  const binsWithStockForRecipeProduct = useCallback(
+    (productId: string): Set<string> => {
+      const out = new Set<string>();
+      if (!selectedRecipe || !fromRecipeWarehouseId || !productId) return out;
+      for (const row of inventoryBalances) {
+        if (row.warehouseId !== fromRecipeWarehouseId) continue;
+        if (row.customerId !== selectedRecipe.customerId) continue;
+        if (row.productId !== productId) continue;
+        const bid = row.binId;
+        if (!bid) continue;
+        if (Number(row.qtyOnHand ?? 0) > 0) out.add(bid);
+      }
+      return out;
+    },
+    [fromRecipeWarehouseId, inventoryBalances, selectedRecipe],
+  );
+
   const selectedOutputProcessProduct = useMemo(
     () => processProductsForCustomer.find((p) => p.id === outputProductId),
     [processProductsForCustomer, outputProductId],
-  );
-  const selectedInputProcessProduct = useMemo(
-    () => processProductsForCustomer.find((p) => p.id === inputLine.productId),
-    [processProductsForCustomer, inputLine.productId],
   );
   const selectedFromRecipeOutputProduct = useMemo(
     () => processProductsForCustomer.find((p) => p.id === (selectedRecipe?.outputProductId ?? '')),
@@ -243,7 +296,6 @@ export default function ProcessFlowPanel({ section }: Props) {
     return options;
   }, []);
   const outputUomOptions = useMemo(() => uomOptionsForProduct(selectedOutputProcessProduct), [uomOptionsForProduct, selectedOutputProcessProduct]);
-  const inputUomOptions = useMemo(() => uomOptionsForProduct(selectedInputProcessProduct), [uomOptionsForProduct, selectedInputProcessProduct]);
   const fromRecipeOutputUomOptions = useMemo(
     () => uomOptionsForProduct(selectedFromRecipeOutputProduct),
     [uomOptionsForProduct, selectedFromRecipeOutputProduct],
@@ -331,19 +383,29 @@ export default function ProcessFlowPanel({ section }: Props) {
   }, [outputProductId, outputUomId, outputUomOptions]);
 
   useEffect(() => {
-    if (!inputLine.productId) return;
-    if (inputLine.uomId && inputUomOptions.some((opt) => opt.id === inputLine.uomId)) return;
-    setInputLine((prev) => ({ ...prev, uomId: inputUomOptions[0]?.id ?? '' }));
-  }, [inputLine.productId, inputLine.uomId, inputUomOptions]);
-
-  useEffect(() => {
     if (!selectedRecipe?.outputProductId) return;
     if (fromRecipeOutputUomId && fromRecipeOutputUomOptions.some((opt) => opt.id === fromRecipeOutputUomId)) return;
     setFromRecipeOutputUomId(fromRecipeOutputUomOptions[0]?.id ?? '');
   }, [selectedRecipe?.outputProductId, fromRecipeOutputUomId, fromRecipeOutputUomOptions]);
 
+  useEffect(() => {
+    setInputLines((prev) =>
+      prev.map((line) => {
+        if (!line.productId) return line;
+        const selectedInputProduct = processProductsForCustomer.find((p) => p.id === line.productId);
+        const uomOptions = uomOptionsForProduct(selectedInputProduct);
+        if (line.uomId && uomOptions.some((opt) => opt.id === line.uomId)) return line;
+        return { ...line, uomId: uomOptions[0]?.id ?? '' };
+      }),
+    );
+  }, [processProductsForCustomer, uomOptionsForProduct]);
+
   const createTransfer = async () => {
     if (!transferNo || !transferCustomerId || !fromWarehouseId || !toWarehouseId || !transferLine.uomId) return;
+    if (fromWarehouseId === toWarehouseId && transferLine.sourceBinId === transferLine.destinationBinId) {
+      setError('Untuk satu gudang, bin asal dan bin tujuan harus berbeda (boleh beda zona).');
+      return;
+    }
     setActionBusy('create-transfer');
     setError(null);
     setSuccess(null);
@@ -382,6 +444,24 @@ export default function ProcessFlowPanel({ section }: Props) {
 
   const createTransformation = async () => {
     if (!processNo || !processCustomerId || !processWarehouseId || !outputProductId || !outputBinId) return;
+    const normalizedInputs = inputLines
+      .filter((line) => line.productId && line.binId && Number(line.qtyConsumed) > 0)
+      .map((line) => ({
+        productId: line.productId,
+        binId: line.binId,
+        lotNo: line.lotNo.trim() || undefined,
+        batchNo: line.batchNo.trim() || undefined,
+        serialNos: line.serialNosText
+          .split(',')
+          .map((s) => s.trim())
+          .filter(Boolean),
+        uomId: line.uomId || undefined,
+        qtyConsumed: Number(line.qtyConsumed),
+      }));
+    if (normalizedInputs.length === 0) {
+      setError('Minimal 1 input product dengan bin dan qty valid harus diisi');
+      return;
+    }
     setActionBusy('create-transformation');
     setError(null);
     setSuccess(null);
@@ -400,19 +480,7 @@ export default function ProcessFlowPanel({ section }: Props) {
           .filter(Boolean),
         outputUomId: outputUomId || undefined,
         qtyOutput: Number(qtyOutput),
-        inputs: [
-          {
-            ...inputLine,
-            lotNo: inputLine.lotNo.trim() || undefined,
-            batchNo: inputLine.batchNo.trim() || undefined,
-            serialNos: inputLine.serialNosText
-              .split(',')
-              .map((s) => s.trim())
-              .filter(Boolean),
-            uomId: inputLine.uomId || undefined,
-            qtyConsumed: Number(inputLine.qtyConsumed),
-          },
-        ],
+        inputs: normalizedInputs,
       });
       setSuccess('Material transformation created');
       await loadData();
@@ -601,6 +669,10 @@ export default function ProcessFlowPanel({ section }: Props) {
       {section === 'transfers' ? (
         <section className="card">
           <h2>Process Flow - Internal Transfers</h2>
+          <p className="muted" style={{ marginBottom: 12 }}>
+            Pindah stok antar <strong>gudang berbeda</strong>, atau dalam <strong>satu gudang</strong> antar bin (termasuk
+            beda zona): centang &quot;Satu gudang&quot; lalu pilih bin asal dan bin tujuan.
+          </p>
           <div className="form-grid">
             <div>
               <label>Transfer No</label>
@@ -661,7 +733,7 @@ export default function ProcessFlowPanel({ section }: Props) {
                 value={fromWarehouseId}
                 onChange={(e) => {
                   setFromWarehouseId(e.target.value);
-                  setTransferLine((p) => ({ ...p, sourceBinId: '' }));
+                  setTransferLine((p) => ({ ...p, sourceBinId: '', destinationBinId: '' }));
                 }}
               >
                 <option value="">Pilih warehouse</option>
@@ -672,16 +744,30 @@ export default function ProcessFlowPanel({ section }: Props) {
                 ))}
               </select>
             </div>
+            <div className="full-row checkbox-row">
+              <label className="checkbox-row">
+                <input
+                  type="checkbox"
+                  checked={sameWarehouseBinMove}
+                  onChange={(e) => {
+                    const on = e.target.checked;
+                    setSameWarehouseBinMove(on);
+                    if (on && fromWarehouseId) setToWarehouseId(fromWarehouseId);
+                  }}
+                />
+                Satu gudang — pindah antar bin / zona (To warehouse = From)
+              </label>
+            </div>
             <div>
               <label>Line Source Bin</label>
               <select
                 value={transferLine.sourceBinId}
-                onChange={(e) => setTransferLine((p) => ({ ...p, sourceBinId: e.target.value }))}
+                onChange={(e) => setTransferLine((p) => ({ ...p, sourceBinId: e.target.value, destinationBinId: '' }))}
               >
                 <option value="">Pilih bin</option>
                 {(binsByWarehouse.get(fromWarehouseId) ?? []).map((b) => (
                   <option key={b.id} value={b.id}>
-                    {b.code ?? b.id} - {b.name ?? '-'}
+                    {formatTransferBinOptionLabel(b)}
                   </option>
                 ))}
               </select>
@@ -689,11 +775,14 @@ export default function ProcessFlowPanel({ section }: Props) {
             <div>
               <label>To Warehouse</label>
               <select
-                value={toWarehouseId}
+                value={sameWarehouseBinMove ? fromWarehouseId || '' : toWarehouseId}
                 onChange={(e) => {
+                  if (sameWarehouseBinMove) return;
                   setToWarehouseId(e.target.value);
                   setTransferLine((p) => ({ ...p, destinationBinId: '' }));
                 }}
+                disabled={sameWarehouseBinMove}
+                title={sameWarehouseBinMove ? 'Diisi otomatis sama dengan From warehouse' : undefined}
               >
                 <option value="">Pilih warehouse</option>
                 {warehouses.map((w) => (
@@ -710,9 +799,9 @@ export default function ProcessFlowPanel({ section }: Props) {
                 onChange={(e) => setTransferLine((p) => ({ ...p, destinationBinId: e.target.value }))}
               >
                 <option value="">Pilih bin</option>
-                {(binsByWarehouse.get(toWarehouseId) ?? []).map((b) => (
+                {destinationBinsForTransfer.map((b) => (
                   <option key={b.id} value={b.id}>
-                    {b.code ?? b.id} - {b.name ?? '-'}
+                    {formatTransferBinOptionLabel(b)}
                   </option>
                 ))}
               </select>
@@ -778,7 +867,17 @@ export default function ProcessFlowPanel({ section }: Props) {
                 onSelectCustomer={(nextCustomerId) => {
                   setProcessCustomerId(nextCustomerId);
                   setOutputProductId('');
-                  setInputLine((prev) => ({ ...prev, productId: '' }));
+                  setInputLines([
+                    {
+                      productId: '',
+                      binId: '',
+                      lotNo: '',
+                      batchNo: '',
+                      serialNosText: '',
+                      uomId: '',
+                      qtyConsumed: '1',
+                    },
+                  ]);
                 }}
               />
             </div>
@@ -850,68 +949,118 @@ export default function ProcessFlowPanel({ section }: Props) {
                 placeholder="Pisahkan koma, contoh: SN-OUT-001,SN-OUT-002"
               />
             </div>
-            <div>
-              <ProductBrowseField
-                label="Input Product"
-                products={processProductsForCustomer}
-                selectedProductId={inputLine.productId}
-                onSelectProduct={(nextProductId) => setInputLine((p) => ({ ...p, productId: nextProductId, uomId: '' }))}
-                disabled={!processCustomerId}
-                emptyMessage={processCustomerId ? 'Tidak ada produk untuk customer ini.' : 'Pilih customer dulu.'}
-              />
-            </div>
-            <div>
-              <label>Input Bin</label>
-              <select value={inputLine.binId} onChange={(e) => setInputLine((p) => ({ ...p, binId: e.target.value }))}>
-                <option value="">Pilih bin</option>
-                {(binsByWarehouse.get(processWarehouseId) ?? []).map((b) => (
-                  <option key={b.id} value={b.id}>
-                    {b.code ?? b.id} - {b.name ?? '-'}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label>Qty Consumed</label>
-              <div className="qty-with-uom">
-                <input
-                  type="number"
-                  min={0.0001}
-                  step="any"
-                  value={inputLine.qtyConsumed}
-                  onChange={(e) => setInputLine((p) => ({ ...p, qtyConsumed: e.target.value }))}
-                />
-                <select value={inputLine.uomId} onChange={(e) => setInputLine((p) => ({ ...p, uomId: e.target.value }))}>
-                  {inputUomOptions.length > 0 ? (
-                    inputUomOptions.map((opt) => (
-                      <option key={opt.id} value={opt.id}>
-                        {opt.label}
-                      </option>
-                    ))
-                  ) : (
-                    <option value="">-</option>
-                  )}
-                </select>
-              </div>
-            </div>
-            <div>
-              <label>Input Lot No</label>
-              <input value={inputLine.lotNo} onChange={(e) => setInputLine((p) => ({ ...p, lotNo: e.target.value }))} placeholder="Opsional" />
-            </div>
-            <div>
-              <label>Input Batch No</label>
-              <input value={inputLine.batchNo} onChange={(e) => setInputLine((p) => ({ ...p, batchNo: e.target.value }))} placeholder="Opsional" />
-            </div>
-            <div>
-              <label>Input Serial Nos</label>
-              <input
-                value={inputLine.serialNosText}
-                onChange={(e) => setInputLine((p) => ({ ...p, serialNosText: e.target.value }))}
-                placeholder="Pisahkan koma, contoh: SN-RAW-001,SN-RAW-002"
-              />
-            </div>
           </div>
+          {inputLines.map((line, idx) => {
+            const selectedInputProduct = processProductsForCustomer.find((p) => p.id === line.productId);
+            const inputUomOptions = uomOptionsForProduct(selectedInputProduct);
+            const effectiveUomId = inputUomOptions.some((opt) => opt.id === line.uomId) ? line.uomId : inputUomOptions[0]?.id ?? '';
+            return (
+              <div key={`trans-input-${idx}`} className="form-grid" style={{ marginTop: 8 }}>
+                <div>
+                  <ProductBrowseField
+                    label={`Input Product #${idx + 1}`}
+                    products={processProductsForCustomer}
+                    selectedProductId={line.productId}
+                    onSelectProduct={(nextProductId) =>
+                      setInputLines((prev) => prev.map((p, i) => (i === idx ? { ...p, productId: nextProductId, uomId: '' } : p)))
+                    }
+                    disabled={!processCustomerId}
+                    emptyMessage={processCustomerId ? 'Tidak ada produk untuk customer ini.' : 'Pilih customer dulu.'}
+                  />
+                </div>
+                <div>
+                  <label>Input Bin</label>
+                  <select
+                    value={line.binId}
+                    onChange={(e) => setInputLines((prev) => prev.map((p, i) => (i === idx ? { ...p, binId: e.target.value } : p)))}
+                  >
+                    <option value="">Pilih bin</option>
+                    {(binsByWarehouse.get(processWarehouseId) ?? []).map((b) => (
+                      <option key={b.id} value={b.id}>
+                        {b.code ?? b.id} - {b.name ?? '-'}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label>Qty Consumed</label>
+                  <div className="qty-with-uom">
+                    <input
+                      type="number"
+                      min={0.0001}
+                      step="any"
+                      value={line.qtyConsumed}
+                      onChange={(e) =>
+                        setInputLines((prev) => prev.map((p, i) => (i === idx ? { ...p, qtyConsumed: e.target.value } : p)))
+                      }
+                    />
+                    <select
+                      value={effectiveUomId}
+                      onChange={(e) => setInputLines((prev) => prev.map((p, i) => (i === idx ? { ...p, uomId: e.target.value } : p)))}
+                    >
+                      {inputUomOptions.length > 0 ? (
+                        inputUomOptions.map((opt) => (
+                          <option key={opt.id} value={opt.id}>
+                            {opt.label}
+                          </option>
+                        ))
+                      ) : (
+                        <option value="">-</option>
+                      )}
+                    </select>
+                  </div>
+                </div>
+                <div>
+                  <label>Input Lot No</label>
+                  <input
+                    value={line.lotNo}
+                    onChange={(e) => setInputLines((prev) => prev.map((p, i) => (i === idx ? { ...p, lotNo: e.target.value } : p)))}
+                    placeholder="Opsional"
+                  />
+                </div>
+                <div>
+                  <label>Input Batch No</label>
+                  <input
+                    value={line.batchNo}
+                    onChange={(e) => setInputLines((prev) => prev.map((p, i) => (i === idx ? { ...p, batchNo: e.target.value } : p)))}
+                    placeholder="Opsional"
+                  />
+                </div>
+                <div>
+                  <label>Input Serial Nos</label>
+                  <input
+                    value={line.serialNosText}
+                    onChange={(e) =>
+                      setInputLines((prev) => prev.map((p, i) => (i === idx ? { ...p, serialNosText: e.target.value } : p)))
+                    }
+                    placeholder="Opsional (pisahkan koma), contoh: SN-RAW-001,SN-RAW-002"
+                  />
+                </div>
+              </div>
+            );
+          })}
           <div className="row">
+            <button
+              type="button"
+              className="btn-secondary"
+              disabled={busy || !!actionBusy}
+              onClick={() =>
+                setInputLines((prev) => [
+                  ...prev,
+                  {
+                    productId: '',
+                    binId: '',
+                    lotNo: '',
+                    batchNo: '',
+                    serialNosText: '',
+                    uomId: '',
+                    qtyConsumed: '1',
+                  },
+                ])
+              }
+            >
+              + Tambah Input Product
+            </button>
             <button type="button" disabled={busy || !!actionBusy} onClick={() => void createTransformation()}>
               Buat Transformation
             </button>
@@ -1232,7 +1381,9 @@ export default function ProcessFlowPanel({ section }: Props) {
           {selectedRecipe ? (
             <div style={{ marginTop: 12 }}>
               <label className="form-section-title">Input Bins per Recipe Line</label>
-              {(selectedRecipe.lines ?? []).map((line, idx) => (
+              {(selectedRecipe.lines ?? []).map((line, idx) => {
+                const allowedBinIds = binsWithStockForRecipeProduct(line.productId);
+                return (
                 <div key={`recipe-line-map-${line.productId}-${idx}`} className="form-grid" style={{ marginTop: 8 }}>
                   <div>
                     <label>Bahan #{idx + 1}</label>
@@ -1256,15 +1407,23 @@ export default function ProcessFlowPanel({ section }: Props) {
                       }
                     >
                       <option value="">Pilih input bin</option>
-                      {(binsByWarehouse.get(fromRecipeWarehouseId) ?? []).map((b) => (
-                        <option key={b.id} value={b.id}>
-                          {b.code ?? b.id} - {b.name ?? '-'}
-                        </option>
-                      ))}
+                      {(binsByWarehouse.get(fromRecipeWarehouseId) ?? [])
+                        .filter((b) => allowedBinIds.has(b.id))
+                        .map((b) => (
+                          <option key={b.id} value={b.id}>
+                            {b.code ?? b.id} - {b.name ?? '-'}
+                          </option>
+                        ))}
                     </select>
+                    {allowedBinIds.size === 0 ? (
+                      <p className="muted" style={{ marginTop: 4 }}>
+                        Tidak ada bin dengan stok untuk bahan ini di gudang ini (per saldo inventory). Receive/transfer
+                        dulu ke warehouse ini.
+                      </p>
+                    ) : null}
                   </div>
                 </div>
-              ))}
+              )})}
             </div>
           ) : null}
           <div className="row">
@@ -1335,6 +1494,56 @@ export default function ProcessFlowPanel({ section }: Props) {
               updatedAt: r.updatedAt ?? '',
             }),
           )}
+          renderEditModal={(row) => {
+            const recipe = recipes.find((r) => r.id === String(row.id ?? ''));
+            return (
+              <div className="table-modal-generic-edit">
+                <p className="muted">Detail line recipe (read-only) untuk verifikasi bahan.</p>
+                <div className="form-grid" style={{ marginTop: 12 }}>
+                  <div>
+                    <label>Recipe</label>
+                    <input readOnly value={String(recipe?.recipeCode ?? row.recipeCode ?? '')} />
+                  </div>
+                  <div>
+                    <label>Active</label>
+                    <input readOnly value={String(recipe?.isActive ? 'YES' : 'NO')} />
+                  </div>
+                  <div>
+                    <label>Base Output</label>
+                    <input readOnly value={String(recipe?.baseOutputQty ?? row.baseOutputQty ?? '')} />
+                  </div>
+                  <div>
+                    <label>Lines</label>
+                    <input readOnly value={String(recipe?.lines?.length ?? row.lineCount ?? 0)} />
+                  </div>
+                </div>
+                <div style={{ marginTop: 12 }}>
+                  <label>Breakdown Lines</label>
+                  {recipe?.lines?.length ? (
+                    recipe.lines.map((line, idx) => (
+                      <div key={`${line.productId}-${idx}`} className="form-grid" style={{ marginTop: 8 }}>
+                        <div>
+                          <label>Bahan #{idx + 1}</label>
+                          <input
+                            readOnly
+                            value={`${line.product?.sku ?? line.product?.code ?? line.productId} - ${line.product?.name ?? '-'}`}
+                          />
+                        </div>
+                        <div>
+                          <label>Qty per Base</label>
+                          <input readOnly value={String(line.qtyPerBase)} />
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <p className="muted" style={{ marginTop: 8 }}>
+                      Tidak ada line untuk recipe ini.
+                    </p>
+                  )}
+                </div>
+              </div>
+            );
+          }}
           loading={loading}
         />
       )}

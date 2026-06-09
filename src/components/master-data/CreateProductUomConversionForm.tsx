@@ -60,7 +60,7 @@ export default function CreateProductUomConversionForm({
     setFactor(initialData.factor ?? '1');
     setNote(initialData.note ?? '');
     setIsActive(initialData.isActive ?? true);
-  }, [initialData?.productId, initialData?.fromUomId, initialData?.toUomId, initialData?.factor, initialData?.note, initialData?.isActive]);
+  }, [initialData]);
 
   return (
     <>

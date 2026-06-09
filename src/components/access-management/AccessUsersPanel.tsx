@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { callApi } from '@/src/lib/api';
 import { useWmsData } from '@/src/lib/useWmsData';
 import ToastMessage from '@/src/components/ui/ToastMessage';
-import SimpleTable, { type SimpleTableRow } from '@/src/components/ui/SimpleTable';
+import SimpleTable from '@/src/components/ui/SimpleTable';
 
 export default function AccessUsersPanel() {
   const { apiBase, token, busy, operators, warehouses } = useWmsData();

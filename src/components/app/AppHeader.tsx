@@ -8,13 +8,7 @@ type AppHeaderProps = {
   onLogout: () => void;
 };
 
-export default function AppHeader({
-  apiBase,
-  busy,
-  onApiBaseChange,
-  onHealth,
-  onLogout,
-}: AppHeaderProps) {
+export default function AppHeader(props: AppHeaderProps) {
   return (
     <header className="navbar">
       <div className="navbar-left">
@@ -26,7 +20,7 @@ export default function AppHeader({
         {/* <button onClick={onHealth} disabled={busy}>
           Health
         </button> */}
-        <button className="btn-secondary" onClick={onLogout}>
+        <button className="btn-secondary" onClick={props.onLogout}>
           Logout
         </button>
       </div>

@@ -40,7 +40,7 @@ export default function CreateOutboundTaskForm({ busy, salesOrders, bins, onSubm
     [salesOrders, salesOrderId],
   );
 
-  const items = order?.items ?? [];
+  const items = useMemo(() => order?.items ?? [], [order?.items]);
   const selectedItem = useMemo(
     () => items.find((it) => it.id === salesOrderItemId),
     [items, salesOrderItemId],

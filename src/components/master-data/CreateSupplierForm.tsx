@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import CustomerBrowseField from '@/src/components/ui/CustomerBrowseField';
 import { OptionItem, SupplierPicRow } from '@/src/lib/useWmsData';
 import IndonesiaAddressFields, { IndonesiaAddressValue } from './IndonesiaAddressFields';

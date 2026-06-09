@@ -160,23 +160,7 @@ export default function CreateWarehouseForm({
       subdistrict: initialData.subdistrict != null ? String(initialData.subdistrict) : '',
       postalCode: initialData.postalCode != null ? String(initialData.postalCode) : '',
     });
-  }, [
-    initialData?.code,
-    initialData?.name,
-    initialData?.type,
-    initialData?.isTransitImportHub,
-    initialData?.ownerCompanyId,
-    initialData?.operatorCompanyId,
-    initialData?.customerId,
-    initialData?.customerIds?.join(','),
-    initialData?.phone,
-    initialData?.address,
-    initialData?.province,
-    initialData?.city,
-    initialData?.district,
-    initialData?.subdistrict,
-    initialData?.postalCode,
-  ]);
+  }, [initialData]);
 
   return (
     <>

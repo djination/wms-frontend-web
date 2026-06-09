@@ -7,6 +7,29 @@ import { computeNextAsnNo, dateInputToYyyymmdd, getAsnNoPrefix } from '@/src/lib
 import { filterWarehousesForCustomer } from '@/src/lib/warehouse-customer-filter';
 import { OptionItem } from '@/src/lib/useWmsData';
 
+/** UOM yang valid untuk baris ASN/receiving/outbound: base produk + fromUom konversi aktif ke base (sama aturan backend). */
+function allowedUomIdsForProduct(product: OptionItem | undefined): Set<string> {
+  const ids = new Set<string>();
+  if (!product) return ids;
+  const row = product as Record<string, unknown>;
+  const base = row.baseUomId != null ? String(row.baseUomId) : '';
+  if (base) ids.add(base);
+  const convs = Array.isArray(row.uomConversions) ? (row.uomConversions as Record<string, unknown>[]) : [];
+  for (const conv of convs) {
+    if (conv.isActive === false) continue;
+    const fromId = conv.fromUomId != null ? String(conv.fromUomId) : '';
+    if (fromId) ids.add(fromId);
+  }
+  return ids;
+}
+
+function uomSelectOptionsForProduct(product: OptionItem | undefined, allUoms: OptionItem[]): OptionItem[] {
+  const active = allUoms.filter((u) => u.isActive !== false);
+  const allowed = allowedUomIdsForProduct(product);
+  if (!product || allowed.size === 0) return active;
+  return active.filter((u) => allowed.has(u.id));
+}
+
 type Payload = {
   asnNo: string;
   customerId: string;
@@ -90,6 +113,21 @@ export default function CreateAsnForm({ busy, customers, suppliers, uoms, wareho
       }),
     );
   }, [productsForCustomer, suppliersForCustomer]);
+
+  useEffect(() => {
+    setItems((prev) =>
+      prev.map((it) => {
+        const product = productsForCustomer.find((p) => p.id === it.productId);
+        if (!it.productId || !product) return it;
+        const allowed = allowedUomIdsForProduct(product);
+        if (it.uomId && allowed.has(it.uomId)) return it;
+        const row = product as Record<string, unknown>;
+        const base = row.baseUomId != null ? String(row.baseUomId) : '';
+        const nextUom = base && allowed.has(base) ? base : [...allowed][0] ?? '';
+        return { ...it, uomId: nextUom };
+      }),
+    );
+  }, [productsForCustomer]);
 
   useEffect(() => {
     if (!warehouseId) return;
@@ -178,9 +216,15 @@ export default function CreateAsnForm({ busy, customers, suppliers, uoms, wareho
                       selectedProductId={item.productId}
                       onSelectProduct={(nextProductId) =>
                         setItems((prev) =>
-                          prev.map((it, i) =>
-                            i === idx ? { ...it, productId: nextProductId, supplierId: '' } : it,
-                          ),
+                          prev.map((it, i) => {
+                            if (i !== idx) return it;
+                            const p = productsForCustomer.find((x) => x.id === nextProductId);
+                            const base =
+                              p != null && (p as Record<string, unknown>).baseUomId != null
+                                ? String((p as Record<string, unknown>).baseUomId)
+                                : '';
+                            return { ...it, productId: nextProductId, supplierId: '', uomId: base };
+                          }),
                         )
                       }
                       disabled={busy || !customerId}
@@ -237,15 +281,22 @@ export default function CreateAsnForm({ busy, customers, suppliers, uoms, wareho
                           prev.map((it, i) => (i === idx ? { ...it, uomId: e.target.value } : it)),
                         )
                       }
+                      disabled={!item.productId}
+                      title={
+                        item.productId
+                          ? 'Base UOM dan UOM konversi aktif untuk produk ini (sesuai master Product UOM Conversion).'
+                          : 'Pilih produk dulu'
+                      }
                     >
-                      <option value="">Pilih UOM</option>
-                      {uoms
-                        .filter((u) => u.isActive !== false)
-                        .map((u) => (
-                          <option key={u.id} value={u.id}>
-                            {u.code ?? '-'} - {u.name ?? '-'}
-                          </option>
-                        ))}
+                      <option value="">{item.productId ? 'Pilih UOM' : 'Pilih produk dulu'}</option>
+                      {uomSelectOptionsForProduct(
+                        productsForCustomer.find((p) => p.id === item.productId),
+                        uoms,
+                      ).map((u) => (
+                        <option key={u.id} value={u.id}>
+                          {u.code ?? '-'} - {u.name ?? '-'}
+                        </option>
+                      ))}
                     </select>
                   </div>
                   <div className="asn-item-field asn-item-field--action">

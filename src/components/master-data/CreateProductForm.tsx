@@ -59,7 +59,7 @@ export default function CreateProductForm({
     setName(initialData.name ?? '');
     setSupplierIds(initialData.supplierIds ?? []);
     setBaseUomId(initialData.baseUomId ?? '');
-  }, [initialData?.customerId, initialData?.sku, initialData?.name, initialData?.supplierIds, initialData?.baseUomId]);
+  }, [initialData]);
 
   return (
     <>

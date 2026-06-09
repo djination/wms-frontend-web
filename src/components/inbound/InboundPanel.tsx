@@ -156,6 +156,7 @@ export default function InboundPanel({ section }: InboundPanelProps) {
           const expectedAtRaw = asn?.expectedAt != null ? String(asn.expectedAt) : '';
           const expectedAtDateInput = expectedAtRaw ? new Date(expectedAtRaw).toISOString().slice(0, 10) : '';
           const rawItems = Array.isArray(asn?.items) ? (asn?.items as Record<string, unknown>[]) : [];
+          const receiptList = Array.isArray(asn?.receipts) ? (asn.receipts as Record<string, unknown>[]) : [];
           const initialItems = rawItems.map((it) => ({
             productId: it.productId != null ? String(it.productId) : '',
             supplierId: it.supplierId != null ? String(it.supplierId) : '',
@@ -163,7 +164,7 @@ export default function InboundPanel({ section }: InboundPanelProps) {
             qtyExpected: it.qtyExpected != null ? String(it.qtyExpected) : '0',
           }));
 
-          function EditAsnItemsModal() {
+          function EditAsnItemsModal({ receipts }: { receipts: Record<string, unknown>[] }) {
             const [items, setItems] = useState(
               initialItems.length > 0
                 ? initialItems
@@ -176,29 +177,44 @@ export default function InboundPanel({ section }: InboundPanelProps) {
             const suppliersForCustomer = suppliers.filter((s) => !customerId || s.customerId === customerId);
             const editable = status === 'DRAFT' && !readOnly;
             const receiptRows = useMemo(() => {
-              const raw = Array.isArray(asn?.receipts) ? (asn.receipts as Record<string, unknown>[]) : [];
-              return raw.map((r) => {
+              return receipts.map((r) => {
                 const prod = (r.product ?? null) as Record<string, unknown> | null;
                 const bin = (r.bin ?? null) as Record<string, unknown> | null;
+                const uom = (r.uom ?? null) as Record<string, unknown> | null;
+                const baseUom = (prod?.baseUom ?? null) as Record<string, unknown> | null;
                 const sku = prod?.sku != null ? String(prod.sku) : '';
                 const pname = prod?.name != null ? String(prod.name) : '';
                 const productLabel = sku || pname ? `${sku}${sku && pname ? ' — ' : ''}${pname}` : String(r.productId ?? '—');
                 const bcode = bin?.code != null ? String(bin.code) : '';
                 const bname = bin?.name != null ? String(bin.name) : '';
                 const binLabel = bcode || bname ? `${bcode}${bcode && bname ? ' — ' : ''}${bname}` : String(r.binId ?? '—');
+                const uomCode = uom?.code != null ? String(uom.code) : '';
+                const inputRaw = r.qtyReceivedInput;
+                const inputStr =
+                  inputRaw !== undefined && inputRaw !== null && String(inputRaw).trim() !== ''
+                    ? String(inputRaw)
+                    : '';
+                const baseQtyStr = r.qtyReceived != null ? String(r.qtyReceived) : '';
+                const baseCode = baseUom?.code != null ? String(baseUom.code) : '';
+                const qtyReceivedLabel =
+                  inputStr && uomCode && baseQtyStr && baseCode
+                    ? `${inputStr} ${uomCode} → ${baseQtyStr} ${baseCode}`
+                    : baseQtyStr && baseCode
+                      ? `${baseQtyStr} ${baseCode}`
+                      : baseQtyStr || '—';
                 return {
                   id: String(r.id ?? ''),
                   receivedAt: r.receivedAt != null ? String(r.receivedAt) : '',
                   productLabel,
                   binLabel,
-                  qtyReceived: r.qtyReceived != null ? String(r.qtyReceived) : '',
+                  qtyReceived: qtyReceivedLabel,
                   customsClearanceStatus: String(r.customsClearanceStatus ?? 'NONE'),
                   customsHoldStartedAt: r.customsHoldStartedAt != null ? String(r.customsHoldStartedAt) : '',
                   customsReleasedAt: r.customsReleasedAt != null ? String(r.customsReleasedAt) : '',
                   customsReleaseRef: r.customsReleaseRef != null ? String(r.customsReleaseRef) : '',
                 };
               });
-            }, [asn]);
+            }, [receipts]);
 
             return (
               <>
@@ -359,7 +375,7 @@ export default function InboundPanel({ section }: InboundPanelProps) {
                           <th>Waktu terima</th>
                           <th>Produk</th>
                           <th>Bin</th>
-                          <th>Qty</th>
+                          <th>Qty (input → base)</th>
                           <th>Customs</th>
                           <th>Mulai hold</th>
                           <th>Released</th>
@@ -491,7 +507,7 @@ export default function InboundPanel({ section }: InboundPanelProps) {
             );
           }
 
-          return <EditAsnItemsModal />;
+          return <EditAsnItemsModal receipts={receiptList} />;
         }}
         onDeleteRow={async (row) => {
           await run('cancel-asn', 'DELETE', `/inbound/asns/${String(row.id ?? '')}`);

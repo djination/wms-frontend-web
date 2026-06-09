@@ -321,7 +321,7 @@ export default function AccessRolesPanel() {
         rows={roleRows as Array<Record<string, string | number | null | undefined>>}
         loading={busy}
         hideViewAction
-        renderEditModal={(row, onClose, _ctx) => {
+        renderEditModal={(row, onClose) => {
           const roleId = row.id != null ? String(row.id) : '';
           const role = roleById.get(roleId);
           const mappings = Array.isArray(role?.roleMenus)
