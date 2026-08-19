@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { middlewareJson } from '@/src/lib/middlewareApi';
+import { getEffectiveTenantSlug } from '@/src/lib/session';
 import ToastMessage from '@/src/components/ui/ToastMessage';
 
 type DbKind = 'postgresql' | 'mysql' | 'oracle';
@@ -165,8 +166,38 @@ export default function DataSyncWizard() {
     setToast({ msg, variant });
   }, []);
 
+  const tenantSlug = useMemo(() => getEffectiveTenantSlug(), []);
   const defaultSourceSchema = useMemo(() => sourceForm.introspectionSchema.trim(), [sourceForm]);
   const defaultTargetSchema = useMemo(() => targetForm.introspectionSchema.trim(), [targetForm]);
+
+  useEffect(() => {
+    if (!mwBase || !tenantSlug) return;
+    let active = true;
+    void (async () => {
+      try {
+        const defaults = await middlewareJson<{
+          slug?: string;
+          schema_name?: string;
+          introspection_schema?: string;
+        }>(mwBase, '/api/v1/integration/tenant-defaults', { method: 'GET' });
+        if (!active) return;
+        const schema = defaults.introspection_schema?.trim() || defaults.schema_name?.trim();
+        if (schema) {
+          setTargetForm((prev) =>
+            prev.introspectionSchema.trim() ? prev : { ...prev, introspectionSchema: schema },
+          );
+          setPairs((prev) =>
+            prev.map((p, i) => (i === 0 && !p.targetSchema.trim() ? { ...p, targetSchema: schema } : p)),
+          );
+        }
+      } catch {
+        // Wizard still works if middleware is offline; user can type schema manually.
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, [mwBase, tenantSlug]);
 
   const pingMiddleware = async () => {
     setBusy(true);
@@ -498,6 +529,16 @@ export default function DataSyncWizard() {
           Anda bisa menyalin <strong>beberapa tabel</strong> sekaligus dari satu database sumber ke banyak
           tabel di database lain, atau mengirim batch baris ke <strong>endpoint HTTP</strong> (JSON).
         </p>
+        {tenantSlug ? (
+          <p className="muted data-sync-hint">
+            Tenant aktif: <code>{tenantSlug}</code> — semua job middleware ter-scope ke tenant ini (
+            <code>X-Tenant-Slug</code>).
+          </p>
+        ) : (
+          <p className="error data-sync-hint">
+            Tenant slug belum di-set. Login tenant dulu atau set <code>NEXT_PUBLIC_TENANT_DEFAULT_SLUG</code>.
+          </p>
+        )}
       </header>
 
       {toast ? <ToastMessage message={toast.msg} variant={toast.variant} /> : null}

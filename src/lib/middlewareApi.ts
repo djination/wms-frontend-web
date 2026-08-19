@@ -1,14 +1,19 @@
 /**
- * HTTP helpers for the Python integration middleware (no WMS Bearer token).
+ * HTTP helpers for the Python integration middleware.
+ * Sends X-Tenant-Slug so jobs and connection refs are scoped per tenant.
  */
+
+import { getEffectiveTenantSlug } from './session';
 
 export async function middlewareJson<T>(base: string, path: string, init?: RequestInit): Promise<T> {
   const root = base.replace(/\/$/, '');
   const url = `${root}${path.startsWith('/') ? path : `/${path}`}`;
+  const tenantSlug = getEffectiveTenantSlug();
   const res = await fetch(url, {
     ...init,
     headers: {
       'Content-Type': 'application/json',
+      ...(tenantSlug ? { 'X-Tenant-Slug': tenantSlug } : {}),
       ...init?.headers,
     },
     cache: 'no-store',

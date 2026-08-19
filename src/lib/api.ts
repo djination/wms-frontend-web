@@ -1,4 +1,6 @@
-export type HttpMethod = 'GET' | 'POST' | 'PATCH' | 'DELETE';
+import { getEffectiveTenantSlug } from './session';
+
+export type HttpMethod = 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE';
 
 type ApiErrorBody = {
   statusCode?: number;
@@ -32,18 +34,26 @@ function mapApiErrorMessage(status: number, body: ApiErrorBody | null, statusTex
   return `${status} ${statusText}`;
 }
 
+export type CallApiOptions = {
+  tenantSlug?: string | null;
+  skipTenantHeader?: boolean;
+};
+
 export async function callApi(
   apiBase: string,
   token: string,
   method: HttpMethod,
   path: string,
   payload?: unknown,
+  options?: CallApiOptions,
 ) {
+  const tenantSlug = options?.skipTenantHeader ? '' : getEffectiveTenantSlug(options?.tenantSlug);
   const res = await fetch(`${apiBase}${path}`, {
     method,
     headers: {
       'Content-Type': 'application/json',
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(tenantSlug ? { 'X-Tenant-Slug': tenantSlug } : {}),
     },
     body: payload ? JSON.stringify(payload) : undefined,
     cache: 'no-store',

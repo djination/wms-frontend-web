@@ -60,6 +60,13 @@ body {
   color: #9fb0c5;
 }
 
+.badge.tenant-badge {
+  border-color: #3d6ea8;
+  background: rgba(61, 110, 168, 0.18);
+  color: #d8e8fb;
+  font-weight: 600;
+}
+
 .main-layout {
   flex: 1;
   min-height: 0;
@@ -1524,4 +1531,67 @@ button.btn-small {
   padding: 4px 10px;
   font-size: 12px;
   margin-bottom: 0;
+}
+
+.platform-settings-form {
+  max-width: 520px;
+  margin-top: 20px;
+}
+
+.platform-settings-form .form-section-title {
+  margin-top: 20px;
+}
+
+.platform-settings-form .form-section-title:first-of-type {
+  margin-top: 0;
+}
+
+.platform-settings-grid {
+  grid-template-columns: 1fr;
+  margin-bottom: 4px;
+}
+
+.platform-settings-grid label {
+  margin-top: 0;
+}
+
+.platform-settings-grid input[type='number'],
+.platform-settings-grid textarea {
+  margin-bottom: 0;
+}
+
+.platform-settings-actions {
+  margin-top: 16px;
+}
+
+.platform-settings-actions button {
+  margin-bottom: 0;
+}
+
+.success-msg {
+  color: #86efac;
+  font-size: 14px;
+  margin: 8px 0 0;
+}
+
+.platform-settings-raw {
+  margin-top: 32px;
+  max-width: 640px;
+}
+
+.platform-settings-raw summary {
+  cursor: pointer;
+  color: #9fb0c5;
+  font-size: 13px;
+  margin-bottom: 8px;
+}
+
+.platform-settings-raw pre {
+  background: #0f1419;
+  border: 1px solid #314055;
+  border-radius: 8px;
+  padding: 12px;
+  overflow: auto;
+  font-size: 12px;
+  color: #c7d2e0;
 }

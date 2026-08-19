@@ -7,6 +7,7 @@ import AppHeader from './AppHeader';
 import AppSidebar, { SidebarItem } from './AppSidebar';
 import {
   clearStoredToken,
+  getEffectiveTenantSlug,
   getStoredApiBase,
   getStoredToken,
   setStoredApiBase,
@@ -109,11 +110,35 @@ export default function AppShell({ children }: AppShellProps) {
   const [apiBase, setApiBase] = useState(getStoredApiBase());
   const [token, setToken] = useState('');
   const [busy, setBusy] = useState(false);
+  const [tenantName, setTenantName] = useState('');
   const [menus, setMenus] = useState<SidebarItem[]>(fallbackMenus);
 
   useEffect(() => {
     setToken(getStoredToken());
   }, []);
+
+  useEffect(() => {
+    if (!token) return;
+    const loadTenant = async () => {
+      try {
+        const data = await callApi(apiBase, token, 'GET', '/auth/me');
+        const tenant = (data as { tenant?: { name?: string; slug?: string } | null })?.tenant;
+        if (tenant?.name?.trim()) {
+          setTenantName(tenant.name.trim());
+          return;
+        }
+        if (tenant?.slug?.trim()) {
+          setTenantName(tenant.slug.trim());
+          return;
+        }
+      } catch {
+        // fall through to slug fallback
+      }
+      const slug = getEffectiveTenantSlug();
+      if (slug) setTenantName(slug);
+    };
+    void loadTenant();
+  }, [apiBase, token]);
 
   useEffect(() => {
     if (!token) return;
@@ -173,6 +198,7 @@ export default function AppShell({ children }: AppShellProps) {
       <AppHeader
         apiBase={apiBase}
         busy={busy}
+        tenantName={tenantName}
         onApiBaseChange={onApiBaseChange}
         onHealth={onHealth}
         onLogout={logout}
